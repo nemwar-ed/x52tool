@@ -471,6 +471,11 @@ def find_related_nodes(vendor: int, product: int, exclude_path: str, name: str =
 
 def _is_joystick(dev: evdev.InputDevice) -> bool:
     caps = dev.capabilities(absinfo=False)
+    abs_codes = set(caps.get(ecodes.EV_ABS, []))
+    key_codes = set(caps.get(ecodes.EV_KEY, []))
+    has_stick = bool(abs_codes & {ecodes.ABS_X, ecodes.ABS_Y})
+    has_buttons = any(ecodes.BTN_JOYSTICK <= c <= ecodes.BTN_GEAR_UP for c in key_codes)
+    return has_stick and has_buttons
 
 
 def scan(known_first: bool = True) -> ScanResult:

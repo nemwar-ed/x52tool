@@ -1,0 +1,94 @@
+"""Direkte Tests fuer device.py, ohne Qt und ohne echte Hardware.
+
+Diese Tests waren der fehlende Teil, der die drei Regressionen mit
+verstuemmelten Funktionskoerpern (_is_joystick, ButtonGrid) nicht
+aufgefangen hat: ein 'startet ohne Absturz'-Test sieht identisch aus,
+egal ob eine Funktion korrekt oder leer ist, wenn in der Testumgebung
+ohnehin kein echter Stick angeschlossen ist. Diese Tests rufen die
+Funktionen stattdessen direkt mit synthetischen Werten auf und pruefen
+das tatsaechliche Ergebnis.
+
+Aufruf: python3 -m pytest tests/ -v
+oder ohne pytest: python3 tests/test_device_logic.py
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from evdev import ecodes
+
+from x52tool.device import _is_joystick, _name_tokens
+
+
+class FakeCapsDevice:
+    """Attrappe mit fester capabilities()-Rueckgabe, wie evdev.InputDevice sie liefert."""
+
+    def __init__(self, caps: dict) -> None:
+        self._caps = caps
+
+    def capabilities(self, absinfo: bool = False) -> dict:
+        return self._caps
+
+
+def test_is_joystick_erkennt_x52():
+    """Ein Geraet mit Stick-Achsen und Joystick-Tasten muss True liefern."""
+    caps = {
+        ecodes.EV_ABS: [ecodes.ABS_X, ecodes.ABS_Y, ecodes.ABS_Z],
+        ecodes.EV_KEY: [ecodes.BTN_TRIGGER, ecodes.BTN_THUMB],
+    }
+    assert _is_joystick(FakeCapsDevice(caps)) is True
+
+
+def test_is_joystick_lehnt_tastatur_ab():
+    """Eine normale Tastatur (keine ABS-Achsen) darf nicht als Joystick durchgehen."""
+    caps = {ecodes.EV_KEY: [ecodes.KEY_A, ecodes.KEY_B, ecodes.KEY_ENTER]}
+    assert _is_joystick(FakeCapsDevice(caps)) is False
+
+
+def test_is_joystick_lehnt_maus_ab():
+    """Eine Maus hat REL-Achsen, keine ABS_X/Y und keine Joystick-Tasten-Range."""
+    caps = {
+        ecodes.EV_REL: [ecodes.REL_X, ecodes.REL_Y],
+        ecodes.EV_KEY: [ecodes.BTN_LEFT, ecodes.BTN_RIGHT],
+    }
+    assert _is_joystick(FakeCapsDevice(caps)) is False
+
+
+def test_is_joystick_ohne_buttons():
+    """Nur ABS_X/Y ohne jede Taste im Joystick-Bereich reicht nicht."""
+    caps = {ecodes.EV_ABS: [ecodes.ABS_X, ecodes.ABS_Y]}
+    assert _is_joystick(FakeCapsDevice(caps)) is False
+
+
+def test_name_tokens_findet_gemeinsames_x52():
+    """Realer Fall: Haupt-Stick und virtuelle Ministick-Maus teilen sich 'x52'."""
+    main = _name_tokens("Logitech X52 Professional H.O.T.A.S.")
+    virtual = _name_tokens("X52 virtual mouse")
+    assert main & virtual == {"x52"}
+
+
+def test_name_tokens_ignoriert_fremdgeraet():
+    """Eine Tastatur mit anderem Namen darf keine Ueberschneidung ergeben."""
+    main = _name_tokens("Logitech X52 Professional H.O.T.A.S.")
+    keyboard = _name_tokens("AT Translated Set 2 keyboard")
+    assert not (main & keyboard)
+
+
+if __name__ == "__main__":
+    # Laeuft auch ohne pytest - fuer eine schnelle Kontrolle per
+    # 'python3 tests/test_device_logic.py'.
+    tests = [obj for name, obj in list(globals().items()) if name.startswith("test_")]
+    failures = 0
+    for test in tests:
+        try:
+            test()
+            print(f"OK    {test.__name__}")
+        except AssertionError as exc:
+            failures += 1
+            print(f"FEHLER {test.__name__}: {exc}")
+    print(f"\n{len(tests) - failures}/{len(tests)} bestanden")
+    raise SystemExit(1 if failures else 0)
