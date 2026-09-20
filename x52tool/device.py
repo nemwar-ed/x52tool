@@ -365,7 +365,76 @@ class ScanResult:
     denied: list[str] = field(default_factory=list)
 
 
-def _is_joystick(dev: evdev.InputDevice) -> bool:
+@dataclass
+class RelatedNode:
+    """Ein weiterer Event-Knoten, den derselbe USB-Stick anmeldet.
+
+    Der X52 Pro erzeugt beim Einstecken mehrere /dev/input/eventN. Einer
+    traegt die Joystick-Achsen (der wird als X52Device geoeffnet), ein
+    anderer meldet den Ministick als Maus-Emulation (EV_REL statt EV_ABS).
+    Diese Klasse beschreibt einen Knoten, ohne ihn als Joystick zu behandeln.
+    """
+
+    path: str
+    name: str
+    phys: str
+    role: str  # kurze Einordnung, z.B. "Maus-Emulation (Ministick)"
+    ev_types: str  # z.B. "EV_REL, EV_KEY"
+
+
+_EV_TYPE_NAMES = {
+    ecodes.EV_KEY: "EV_KEY",
+    ecodes.EV_ABS: "EV_ABS",
+    ecodes.EV_REL: "EV_REL",
+    ecodes.EV_MSC: "EV_MSC",
+    ecodes.EV_SYN: "EV_SYN",
+}
+
+
+def _classify_node(caps: dict) -> tuple[str, str]:
+    """Grobe Einordnung anhand der Capabilities, fuer Menschen lesbar."""
+    types_present = [t for t in (ecodes.EV_ABS, ecodes.EV_REL, ecodes.EV_KEY) if t in caps]
+    ev_types = ", ".join(_EV_TYPE_NAMES.get(t, str(t)) for t in sorted(caps.keys()))
+
+    if ecodes.EV_REL in caps and ecodes.EV_ABS not in caps:
+        return "Maus-Emulation (vermutlich Ministick)", ev_types
+    if ecodes.EV_ABS in caps:
+        abs_codes = set(caps.get(ecodes.EV_ABS, []))
+        if abs_codes & {ecodes.ABS_X, ecodes.ABS_Y}:
+            return "Joystick-Achsen (dieser Knoten wird verwendet)", ev_types
+        return "Zusatzachsen ohne Haupt-Stick", ev_types
+    if ecodes.EV_KEY in caps:
+        return "Nur Tasten, keine Achsen", ev_types
+    return "Unklare Rolle", ev_types
+
+
+def find_related_nodes(vendor: int, product: int, exclude_path: str) -> list[RelatedNode]:
+    """Alle Event-Knoten mit derselben USB-ID, ausser dem schon gewaehlten.
+
+    Damit wird sichtbar, was scan() sonst stillschweigend wegfiltert - zum
+    Beispiel der Maus-Emulations-Knoten des Ministicks.
+    """
+    related: list[RelatedNode] = []
+    for path in sorted(evdev.list_devices()):
+        if path == exclude_path:
+            continue
+        try:
+            dev = evdev.InputDevice(path)
+        except OSError:
+            continue
+        try:
+            if dev.info.vendor == vendor and dev.info.product == product:
+                caps = dev.capabilities(absinfo=False)
+                role, ev_types = _classify_node(caps)
+                related.append(
+                    RelatedNode(path=dev.path, name=dev.name, phys=dev.phys or "-", role=role, ev_types=ev_types)
+                )
+        finally:
+            dev.close()
+    return related
+
+
+
     caps = dev.capabilities(absinfo=False)
     abs_codes = set(caps.get(ecodes.EV_ABS, []))
     key_codes = set(caps.get(ecodes.EV_KEY, []))

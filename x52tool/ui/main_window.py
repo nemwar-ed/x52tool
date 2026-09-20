@@ -16,13 +16,15 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from .. import __version__
 from ..config import Settings
-from ..device import DeviceState, X52Device, scan
+from ..device import DeviceState, X52Device, find_related_nodes, scan
 from .analysis_tab import AnalysisTab
 from .calib_tab import CalibrationTab
 from .live_tab import LiveTab
@@ -46,13 +48,24 @@ class DeviceTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
         )
+        self.table.verticalHeader().setDefaultSectionSize(24)
+        self.table.setMinimumHeight(320)
+
+        self.tree_label = QLabel("Event-Knoten desselben USB-Geraets")
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels(["Knoten", "Rolle", "Event-Typen"])
+        self.tree.setRootIsDecorated(True)
+        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
 
         self.notes = QLabel()
         self.notes.setWordWrap(True)
         self.notes.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.table, 1)
+        layout.addWidget(self.table)
+        layout.addWidget(self.tree_label)
+        layout.addWidget(self.tree, 1)
         layout.addWidget(self.notes)
 
     def show_device(self, device: X52Device | None, denied: list[str]) -> None:
@@ -62,13 +75,53 @@ class DeviceTab(QWidget):
             self.table.setItem(row, 0, QTableWidgetItem(key))
             self.table.setItem(row, 1, QTableWidgetItem(value))
 
+        self.tree.clear()
         notes: list[str] = []
         if device is None:
             notes.append(
                 "Kein joystickartiges Eingabegeraet gefunden. Steckt der Stick, "
                 "und zeigt `lsusb` ihn an?"
             )
+            self.tree_label.setVisible(False)
+            self.tree.setVisible(False)
         else:
+            self.tree_label.setVisible(True)
+            self.tree.setVisible(True)
+
+            root = QTreeWidgetItem([device.known_name or device.name, "", ""])
+            root_font = root.font(0)
+            root_font.setBold(True)
+            root.setFont(0, root_font)
+            self.tree.addTopLevelItem(root)
+
+            used = QTreeWidgetItem(
+                [device.path, "Joystick-Achsen (verwendet)", "EV_ABS, EV_KEY"]
+            )
+            root.addChild(used)
+
+            try:
+                related = find_related_nodes(device.vendor, device.product, device.path)
+            except OSError:
+                related = []
+            for node in related:
+                root.addChild(QTreeWidgetItem([node.path, node.role, node.ev_types]))
+
+            self.tree.expandAll()
+
+            if related:
+                notes.append(
+                    "Derselbe Stick meldet mehrere Event-Knoten - oben aufgeklappt. "
+                    "Nur der als 'verwendet' markierte liefert die Achsen und Tasten "
+                    "in diesem Programm; die anderen (z.B. eine Maus-Emulation fuer "
+                    "den Ministick) werden hier nicht ausgewertet."
+                )
+            else:
+                notes.append(
+                    "Kein weiterer Event-Knoten mit derselben USB-ID gefunden - "
+                    "entweder meldet der Stick nur einen, oder ein zusaetzlicher "
+                    "Knoten liegt ohne Leserecht vor (siehe unten)."
+                )
+
             if not device.known_name:
                 notes.append(
                     "Die USB-ID steht nicht in der bekannten Liste. Das Werkzeug "
@@ -80,11 +133,6 @@ class DeviceTab(QWidget):
                     "Schreibrecht - im Reiter Kalibrierung gibt es dafuer eine "
                     "fertige udev-Regel."
                 )
-            notes.append(
-                "Der X52 Pro meldet sich mit mehreren Event-Knoten. Gewaehlt ist der "
-                "Knoten mit den Joystick-Achsen, nicht der Zusatzknoten, ueber den der "
-                "Ministick sich unter Windows/als Zusatzgeraet wie eine Maus verhaelt."
-            )
         if denied:
             notes.append(
                 "Ohne Leserecht uebersprungen: " + ", ".join(denied)
