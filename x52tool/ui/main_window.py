@@ -100,7 +100,7 @@ class DeviceTab(QWidget):
             root.addChild(used)
 
             try:
-                related = find_related_nodes(device.vendor, device.product, device.path)
+                related = find_related_nodes(device.vendor, device.product, device.path, device.name)
             except OSError:
                 related = []
             for node in related:

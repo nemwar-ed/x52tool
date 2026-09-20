@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import re
 import struct
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -409,13 +410,34 @@ def _classify_node(caps: dict) -> tuple[str, str]:
     return "Unklare Rolle", ev_types
 
 
-def find_related_nodes(vendor: int, product: int, exclude_path: str) -> list[RelatedNode]:
-    """Alle Event-Knoten mit derselben USB-ID, ausser dem schon gewaehlten.
+# Woerter, die in praktisch jedem Geraetenamen vorkommen und daher beim
+# Abgleich per Namen ignoriert werden - sonst wuerde z.B. "Flight Control
+# System" zwei komplett verschiedene Sticks als "verwandt" ausgeben.
+_NAME_STOPWORDS = {
+    "flight", "control", "system", "professional", "hotas", "virtual",
+    "mouse", "joystick", "controller", "pro", "device", "input",
+}
+_NAME_BRANDS = {"logitech", "saitek", "madcatz", "mad", "catz", "microsoft"}
 
-    Damit wird sichtbar, was scan() sonst stillschweigend wegfiltert - zum
-    Beispiel der Maus-Emulations-Knoten des Ministicks.
+
+def _name_tokens(name: str) -> set[str]:
+    tokens = {t.lower() for t in re.findall(r"[A-Za-z0-9]+", name)}
+    return {t for t in tokens if len(t) >= 2 and t not in _NAME_STOPWORDS and t not in _NAME_BRANDS}
+
+
+def find_related_nodes(vendor: int, product: int, exclude_path: str, name: str = "") -> list[RelatedNode]:
+    """Alle Event-Knoten desselben Sticks - auch virtuelle ohne USB-ID.
+
+    Der X52 Pro legt fuer den Ministick zusaetzlich ein rein virtuelles
+    Geraet an ("X52 virtual mouse", vom Kernel erzeugt), das Vendor=0000
+    und Product=0000 meldet - ein Abgleich ueber die USB-ID findet es nie.
+    Es gibt auch keinen gemeinsamen physischen Pfad (Phys ist bei virtuellen
+    Geraeten leer). Einziger Anhaltspunkt ist der Name: geteilte, nicht
+    generische Woerter wie "X52". Das ist eine Heuristik, kein Beweis -
+    deshalb wird die Rolle entsprechend gekennzeichnet.
     """
     related: list[RelatedNode] = []
+    own_tokens = _name_tokens(name) if name else set()
     for path in sorted(evdev.list_devices()):
         if path == exclude_path:
             continue
@@ -424,12 +446,23 @@ def find_related_nodes(vendor: int, product: int, exclude_path: str) -> list[Rel
         except OSError:
             continue
         try:
-            if dev.info.vendor == vendor and dev.info.product == product:
-                caps = dev.capabilities(absinfo=False)
-                role, ev_types = _classify_node(caps)
-                related.append(
-                    RelatedNode(path=dev.path, name=dev.name, phys=dev.phys or "-", role=role, ev_types=ev_types)
-                )
+            same_usb_id = dev.info.vendor == vendor and dev.info.product == product
+            shared_tokens = own_tokens & _name_tokens(dev.name) if own_tokens else set()
+            is_virtual_match = (
+                not same_usb_id
+                and dev.info.vendor == 0
+                and dev.info.product == 0
+                and shared_tokens
+            )
+            if not (same_usb_id or is_virtual_match):
+                continue
+            caps = dev.capabilities(absinfo=False)
+            role, ev_types = _classify_node(caps)
+            if is_virtual_match:
+                role += " - virtuell, per Name erkannt (keine USB-ID vorhanden)"
+            related.append(
+                RelatedNode(path=dev.path, name=dev.name, phys=dev.phys or "-", role=role, ev_types=ev_types)
+            )
         finally:
             dev.close()
     return related
