@@ -81,9 +81,9 @@ class DeviceTab(QWidget):
                     "fertige udev-Regel."
                 )
             notes.append(
-                "Der X52 Pro meldet sich mit mehreren Event-Knoten, unter anderem "
-                "einem fuer den Ministick als Maus. Gewaehlt ist der Knoten mit den "
-                "Joystick-Achsen."
+                "Der X52 Pro meldet sich mit mehreren Event-Knoten. Gewaehlt ist der "
+                "Knoten mit den Joystick-Achsen, nicht der Zusatzknoten, ueber den der "
+                "Ministick sich unter Windows/als Zusatzgeraet wie eine Maus verhaelt."
             )
         if denied:
             notes.append(

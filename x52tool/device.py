@@ -124,21 +124,53 @@ def open_writable(path: str) -> Iterator[int]:
 # --------------------------------------------------------------------------
 
 # Namen, die ein Pilot erkennt, statt der evdev-Konstanten.
+#
+# Ministick: Oliver hat das korrigiert - der kleine Maus-Stick am Schubhebel
+# meldet sich nicht auf ABS_RX/ABS_RY, sondern auf ABS_MISC (0x28) und dem im
+# Kernel unbenannten Code 0x29. Er ist rein digital (0 oder Vollausschlag in
+# jede Richtung), keine echte Analogachse - deshalb auch in DIGITAL_AXES.
+# Was ABS_RX/ABS_RY beim X52 Pro tatsaechlich sind, ist unklar; sie bleiben
+# bewusst unbeschriftet und fallen auf den Kernel-Namen zurueck, statt etwas
+# Falsches zu behaupten. Im Live-Test laesst sich das durch Bewegen klaeren.
+ABS_MISC_Y = 0x29  # im Kernel kein eigener Name vergeben
+
 AXIS_LABELS: dict[int, str] = {
     ecodes.ABS_X: "Stick X (Rollen)",
     ecodes.ABS_Y: "Stick Y (Nicken)",
     ecodes.ABS_RZ: "Stick Z (Gieren / Twist)",
     ecodes.ABS_Z: "Schubhebel",
-    ecodes.ABS_RX: "Ministick X",
-    ecodes.ABS_RY: "Ministick Y",
+    ecodes.ABS_MISC: "Ministick X (Maus-Stick, digital)",
+    ABS_MISC_Y: "Ministick Y (Maus-Stick, digital)",
     ecodes.ABS_THROTTLE: "Schieberegler",
     ecodes.ABS_RUDDER: "Rudder",
     ecodes.ABS_HAT0X: "Hat 1 X",
     ecodes.ABS_HAT0Y: "Hat 1 Y",
 }
 
-# Achsen, bei denen eine Deadzone unsinnig ist (digitale Hats).
-DIGITAL_AXES = {ecodes.ABS_HAT0X, ecodes.ABS_HAT0Y, ecodes.ABS_HAT1X, ecodes.ABS_HAT1Y}
+# Achsen, bei denen eine Deadzone unsinnig ist: digitale Hats und der
+# Ministick, der ohnehin nur zwischen 0 und Vollausschlag springt.
+DIGITAL_AXES = {
+    ecodes.ABS_HAT0X,
+    ecodes.ABS_HAT0Y,
+    ecodes.ABS_HAT1X,
+    ecodes.ABS_HAT1Y,
+    ecodes.ABS_HAT2X,
+    ecodes.ABS_HAT2Y,
+    ecodes.ABS_HAT3X,
+    ecodes.ABS_HAT3Y,
+    ecodes.ABS_MISC,
+    ABS_MISC_Y,
+}
+
+# Hat-Achsenpaare (X-Code -> Y-Code), fuer die Kompass-Darstellung im
+# Live-Test statt zweier Balken. Bislang nur Hat 1 - Oliver hat bestaetigt,
+# dass POV-Hat 2 und 3 beim X52 Pro als Tasten kommen, nicht als Achsen.
+HAT_AXIS_PAIRS: dict[int, int] = {
+    ecodes.ABS_HAT0X: ecodes.ABS_HAT0Y,
+    ecodes.ABS_HAT1X: ecodes.ABS_HAT1Y,
+    ecodes.ABS_HAT2X: ecodes.ABS_HAT2Y,
+    ecodes.ABS_HAT3X: ecodes.ABS_HAT3Y,
+}
 
 
 def axis_label(code: int) -> str:
@@ -153,14 +185,26 @@ def axis_label(code: int) -> str:
 def evdev_button_name(code: int) -> str:
     """Kernel-Name der Taste, etwa BTN_TRIGGER.
 
-    Jenseits von 0x12f vergibt der Kernel Namen wie BTN_TOOL_RUBBER, die mit
-    einem Joystick nichts zu tun haben. Deshalb steht in der Oberflaeche die
-    Nummer und der Kernel-Name nur im Tooltip.
+    Es gibt keine verlaessliche, offizielle Saitek-Nummerierung zum
+    Nachschlagen - jede Quelle dazu sagt sinngemaess "zaehl selbst durch".
+    Der Kernel-Name ist das einzige, was sich nicht erfindet, deshalb steht
+    er direkt in der Kachel statt nur im Tooltip.
     """
     raw = ecodes.BTN.get(code) or ecodes.KEY.get(code) or f"CODE {code}"
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
     return str(raw)
+
+
+def button_label(index: int, evdev_name: str) -> str:
+    """Anzeigetext: fortlaufende Nummer und Kernel-Name zusammen.
+
+    Die Nummer ist nur die Reihenfolge, in der der Kernel die Codes meldet -
+    keine Saitek-Tastennummer. Der Kernel-Name daneben ist das, was auch in
+    evtest, jstest-gtk oder einer .binds-Datei auftaucht und sich damit
+    tatsaechlich nachschlagen laesst.
+    """
+    return f"{index + 1}  {evdev_name}"
 
 
 @dataclass
@@ -264,13 +308,9 @@ class X52Device:
                 Axis(code=code, label=axis_label(code), info=info, baseline=info.copy())
             )
         for index, code in enumerate(sorted(caps.get(ecodes.EV_KEY, []))):
+            name = evdev_button_name(code)
             self.buttons.append(
-                Button(
-                    code=code,
-                    label=str(index + 1),
-                    index=index,
-                    evdev_name=evdev_button_name(code),
-                )
+                Button(code=code, label=button_label(index, name), index=index, evdev_name=name)
             )
 
     def axis(self, code: int) -> Axis | None:

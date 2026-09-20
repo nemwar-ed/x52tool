@@ -149,10 +149,100 @@ class AxisBar(QWidget):
         painter.end()
 
 
-class ButtonGrid(QWidget):
-    """Raster aller Tasten. Gedrueckte Tasten leuchten auf."""
+class HatWidget(QWidget):
+    """8-Wege-Kompass fuer ein Hat-Achsenpaar (z.B. ABS_HAT0X/Y).
 
-    COLUMNS = 10
+    Ein Hat ist digital: X und Y liegen praktisch immer bei -1, 0 oder +1.
+    Als zwei Balken dargestellt sieht man nur zwei zuckende Striche und muss
+    im Kopf zusammensetzen, welche der 8 Richtungen das ergibt. Hier wird
+    stattdessen direkt die aktuelle Richtung markiert.
+    """
+
+    # Reihenfolge im Uhrzeigersinn ab oben, fuer die Marker-Positionen.
+    DIRECTIONS = [
+        (0, -1), (1, -1), (1, 0), (1, 1),
+        (0, 1), (-1, 1), (-1, 0), (-1, -1),
+    ]
+
+    def __init__(self, label: str, x_code: int, y_code: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.label = label
+        self.x_code = x_code
+        self.y_code = y_code
+        self.x_value = 0
+        self.y_value = 0
+        self.setMinimumSize(96, 96)
+        self.setToolTip(f"evdev ABS 0x{x_code:02x} / 0x{y_code:02x}")
+
+    def set_values(self, x: int, y: int) -> None:
+        x = 0 if x == 0 else (1 if x > 0 else -1)
+        y = 0 if y == 0 else (1 if y > 0 else -1)
+        if (x, y) != (self.x_value, self.y_value):
+            self.x_value, self.y_value = x, y
+            self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        pal = self.palette()
+        text_colour = pal.color(QPalette.ColorRole.WindowText)
+        edge = pal.color(QPalette.ColorRole.Mid)
+        base = pal.color(QPalette.ColorRole.Base)
+        highlight = pal.color(QPalette.ColorRole.Highlight)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        label_h = 16
+        side = min(self.width(), self.height() - label_h)
+        cx = self.width() / 2
+        cy = label_h + (self.height() - label_h) / 2
+        r_outer = side * 0.46
+        r_dot = side * 0.11
+
+        small = QFont(self.font())
+        small.setPointSizeF(max(8.0, small.pointSizeF() - 0.5))
+        painter.setFont(small)
+        painter.setPen(QPen(text_colour))
+        painter.drawText(
+            QRect(0, 0, self.width(), label_h),
+            Qt.AlignmentFlag.AlignCenter,
+            self.label,
+        )
+
+        # Aussenring
+        painter.setPen(QPen(edge, 2))
+        painter.setBrush(base)
+        painter.drawEllipse(int(cx - r_outer), int(cy - r_outer), int(r_outer * 2), int(r_outer * 2))
+
+        active = (self.x_value, self.y_value)
+        centred = active == (0, 0)
+
+        # Mittelpunkt: leuchtet, wenn der Hat losgelassen ist
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(highlight if centred else edge)
+        painter.drawEllipse(int(cx - r_dot * 0.6), int(cy - r_dot * 0.6), int(r_dot * 1.2), int(r_dot * 1.2))
+
+        # Die 8 Positionen, aktuelle Richtung hervorgehoben
+        for dx, dy in self.DIRECTIONS:
+            px = cx + dx * r_outer * 0.72
+            py = cy + dy * r_outer * 0.72
+            is_active = not centred and (dx, dy) == active
+            painter.setBrush(highlight if is_active else edge)
+            size = r_dot * (1.3 if is_active else 1.0)
+            painter.drawEllipse(int(px - size / 2), int(py - size / 2), int(size), int(size))
+
+        painter.end()
+
+
+
+class ButtonGrid(QWidget):
+    """Raster aller Tasten. Gedrueckte Tasten leuchten auf.
+
+    Zeigt Nummer und Kernel-Name zusammen (z.B. "12  BTN_TOP"), weil es
+    keine verlaessliche Saitek-Nummerierung zum Nachschlagen gibt - der
+    Kernel-Name ist das, was auch in evtest oder einer .binds-Datei steht.
+    """
+
+    COLUMNS = 6
 
     def __init__(self, buttons: list[Button], parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -177,17 +267,18 @@ class ButtonGrid(QWidget):
             f"color:{highlight_text.name()};background:{highlight.name()};font-weight:700;}}"
         )
 
+        small = QFont(self.font())
+        small.setPointSizeF(max(7.5, small.pointSizeF() - 1.0))
+
         grid = QGridLayout(self)
         grid.setSpacing(3)
         grid.setContentsMargins(0, 0, 0, 0)
         for i, button in enumerate(buttons):
             cell = QLabel(button.label)
+            cell.setFont(small)
             cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
             cell.setStyleSheet(self.style_idle)
-            cell.setToolTip(
-                f"Taste {button.label}\n{button.evdev_name}\n"
-                f"evdev-Code {button.code} (0x{button.code:x})"
-            )
+            cell.setToolTip(f"evdev-Code {button.code} (0x{button.code:x})")
             grid.addWidget(cell, i // self.COLUMNS, i % self.COLUMNS)
             self.cells[button.code] = cell
             self._state[button.code] = False
