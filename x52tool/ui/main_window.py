@@ -49,7 +49,7 @@ class DeviceTab(QWidget):
             1, QHeaderView.ResizeMode.Stretch
         )
         self.table.verticalHeader().setDefaultSectionSize(24)
-        self.table.setMinimumHeight(320)
+        self.table.setMinimumHeight(360)
 
         self.tree_label = QLabel("Event-Knoten desselben USB-Geraets")
         self.tree = QTreeWidget()
@@ -57,6 +57,7 @@ class DeviceTab(QWidget):
         self.tree.setRootIsDecorated(True)
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tree.setMaximumHeight(180)
 
         self.notes = QLabel()
         self.notes.setWordWrap(True)
