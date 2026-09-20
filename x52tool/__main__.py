@@ -35,6 +35,8 @@ def _list_devices() -> int:
         dev.close()
     for path in result.denied:
         print(f"! {path}  kein Leserecht")
+    for msg in result.errors:
+        print(f"! {msg}")
     return 0
 
 

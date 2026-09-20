@@ -68,7 +68,7 @@ class DeviceTab(QWidget):
         layout.addWidget(self.tree, 1)
         layout.addWidget(self.notes)
 
-    def show_device(self, device: X52Device | None, denied: list[str]) -> None:
+    def show_device(self, device: X52Device | None, denied: list[str], errors: list[str] | None = None) -> None:
         rows = device.describe() if device else []
         self.table.setRowCount(len(rows))
         for row, (key, value) in enumerate(rows):
@@ -137,6 +137,11 @@ class DeviceTab(QWidget):
             notes.append(
                 "Ohne Leserecht uebersprungen: " + ", ".join(denied)
             )
+        if errors:
+            notes.append(
+                "Fehler beim Oeffnen (weder Rechte- noch Formatproblem, siehe Text):\n"
+                + "\n".join(errors)
+            )
         self.notes.setText("\n\n".join(notes))
 
 
@@ -151,6 +156,7 @@ class MainWindow(QMainWindow):
         self.state: DeviceState | None = None
         self.notifier: QSocketNotifier | None = None
         self._denied: list[str] = []
+        self._errors: list[str] = []
 
         self.picker = QComboBox()
         self.picker.setMinimumWidth(420)
@@ -202,6 +208,7 @@ class MainWindow(QMainWindow):
         result = scan()
         self._candidates = result.devices
         self._denied = result.denied
+        self._errors = result.errors
 
         self.picker.blockSignals(True)
         self.picker.clear()
@@ -237,7 +244,7 @@ class MainWindow(QMainWindow):
             self.notifier.activated.connect(self._drain)
             self.settings.last_device_path = device.path
 
-        self.tab_device.show_device(device, self._denied)
+        self.tab_device.show_device(device, self._denied, self._errors)
         self.tab_live.set_device(device)
         self.tab_analysis.set_device(device)
         self.tab_calib.set_device(device)

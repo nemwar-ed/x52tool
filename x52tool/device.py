@@ -363,6 +363,7 @@ class X52Device:
 class ScanResult:
     devices: list[X52Device] = field(default_factory=list)
     denied: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)  # Pfad + Fehlertext, alles andere als Permission
 
 
 @dataclass
@@ -442,8 +443,11 @@ def _is_joystick(dev: evdev.InputDevice) -> bool:
 def scan(known_first: bool = True) -> ScanResult:
     """Sucht alle joystickartigen Eingabegeraete.
 
-    Geraete ohne Leserecht landen in `denied`, damit die Oberflaeche eine
-    brauchbare Meldung statt einer leeren Liste zeigen kann.
+    Geraete ohne Leserecht landen in `denied`. Jeder andere Fehler beim
+    Oeffnen (z.B. "Device or resource busy", was bei USB-Aussetzern oder
+    einem zweiten Prozess auf demselben Knoten vorkommt) landet in `errors`
+    statt lautlos zu verschwinden - das war vorher der Fall und hat einen
+    echten Fehler wie ein leeres Ergebnis aussehen lassen.
     """
     result = ScanResult()
     for path in sorted(evdev.list_devices()):
@@ -452,14 +456,16 @@ def scan(known_first: bool = True) -> ScanResult:
         except PermissionError:
             result.denied.append(path)
             continue
-        except OSError:
+        except OSError as exc:
+            result.errors.append(f"{path}: {exc}")
             continue
         try:
             if _is_joystick(dev):
                 result.devices.append(X52Device(dev))
             else:
                 dev.close()
-        except OSError:
+        except OSError as exc:
+            result.errors.append(f"{path}: {exc}")
             dev.close()
 
     if known_first:
