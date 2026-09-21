@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGridLayout,
@@ -48,6 +49,7 @@ class OutputTab(QWidget):
         layout.addWidget(self.status)
         layout.addWidget(self._build_leds())
         layout.addWidget(self._build_mfd())
+        layout.addWidget(self._build_clutch())
         layout.addWidget(self._build_backend())
         layout.addWidget(self._build_log(), 1)
 
@@ -126,6 +128,27 @@ class OutputTab(QWidget):
         form.addRow(row)
         return box
 
+    def _build_clutch(self) -> QGroupBox:
+        box = QGroupBox("Clutch (Taste 31, aufgedrucktes Symbol: ein \"i\" im Kreis)")
+        layout = QVBoxLayout(box)
+
+        explain = QLabel(
+            "Ist der Kupplungsmodus am Geraet aktiv, liest der Kernel-Treiber "
+            "(usbhid) diese Taste nicht als normalen Joystick-Button ein - "
+            "sie bleibt im Live-Test unsichtbar, obwohl sie physisch gedrueckt "
+            "wird. Hier laesst sich der Modus abschalten, sofern das "
+            "installierte libx52 das unterstuetzt."
+        )
+        explain.setWordWrap(True)
+        layout.addWidget(explain)
+
+        self.clutch_checkbox = QCheckBox("Kupplungsmodus aktiv")
+        self.clutch_checkbox.toggled.connect(
+            lambda checked: self._log_one(self.backend.set_clutch(checked))
+        )
+        layout.addWidget(self.clutch_checkbox)
+        return box
+
     def _build_backend(self) -> QGroupBox:
         box = QGroupBox("Aufruf des libx52-CLI")
         form = QFormLayout(box)
@@ -135,11 +158,13 @@ class OutputTab(QWidget):
         self.edit_led = QLineEdit(cfg.led)
         self.edit_mfd = QLineEdit(cfg.mfd)
         self.edit_bri = QLineEdit(cfg.brightness)
+        self.edit_clutch = QLineEdit(cfg.clutch)
 
         form.addRow("Programm", self.edit_binary)
         form.addRow("LED", self.edit_led)
         form.addRow("MFD", self.edit_mfd)
         form.addRow("Helligkeit", self.edit_bri)
+        form.addRow("Clutch", self.edit_clutch)
 
         hint = QLabel(
             "Platzhalter: {bin} {led} {state} {line} {text} {target} {value}. "
@@ -190,6 +215,7 @@ class OutputTab(QWidget):
         cfg.led = self.edit_led.text()
         cfg.mfd = self.edit_mfd.text()
         cfg.brightness = self.edit_bri.text()
+        cfg.clutch = self.edit_clutch.text()
         self.backend = Backend(cfg)
         path = self.settings.save()
         self.log.appendPlainText(f"Einstellungen gespeichert in {path}")
@@ -213,6 +239,7 @@ class OutputTab(QWidget):
             combo.setEnabled(enabled)
         for edit in self._mfd_edits:
             edit.setEnabled(enabled)
+        self.clutch_checkbox.setEnabled(enabled)
 
     # -- Protokoll ---------------------------------------------------------
 

@@ -88,7 +88,7 @@ def test_x52_pro_button_mapping_reihenfolge_stimmt_mit_geraet_ueberein():
     von Oliver an echter Hardware bestaetigt."""
     codes = sorted(X52_PRO_BUTTON_LABELS.keys())
     erwartet = [
-        "Trigger", "Fire", "A", "B", "C", "Pinkie Trigger", "D", "E",
+        "Trigger", "Fire", "Fire A", "Fire B", "Fire C", "Pinkie Trigger", "Fire D", "Fire E",
         "T1", "T2", "T3", "T4",
     ]
     tatsaechlich = [X52_PRO_BUTTON_LABELS[c] for c in codes[:12]]
@@ -152,6 +152,26 @@ def test_pov_button_gruppen_zeigen_auf_bekannte_tasten():
         assert X52_PRO_BUTTON_LABELS[right] == f"{prefix} rechts"
         assert X52_PRO_BUTTON_LABELS[down] == f"{prefix} runter"
         assert X52_PRO_BUTTON_LABELS[left] == f"{prefix} links"
+
+
+
+def test_x52_pro_button_31_heisst_clutch():
+    """Taste 31 (Symbol: ein 'i' im Kreis) heisst tatsaechlich Clutch,
+    nicht nur 'i' - von Oliver korrigiert."""
+    codes = sorted(X52_PRO_BUTTON_LABELS.keys())
+    assert X52_PRO_BUTTON_LABELS[codes[30]] == "Clutch"  # Nr. 31
+
+
+def test_backend_set_clutch_baut_erwarteten_befehl():
+    """set_clutch() muss die konfigurierte Vorlage mit 0/1 fuellen."""
+    from x52tool.config import BackendConfig
+    from x52tool.output import Backend
+
+    backend = Backend(BackendConfig(binary="/usr/bin/x52cli"))
+    an = backend.preview(backend.config.clutch, value="1")
+    aus = backend.preview(backend.config.clutch, value="0")
+    assert an == "/usr/bin/x52cli -c 1"
+    assert aus == "/usr/bin/x52cli -c 0"
 
 
 

@@ -132,6 +132,19 @@ class Backend:
             self._build(self.config.brightness, target=target, value=value)
         )
 
+    def set_clutch(self, enabled: bool) -> CommandResult:
+        """Kupplungsmodus (Clutch Mode) an- oder abschalten.
+
+        Ist dieser Modus am Geraet aktiv, liest der Kernel-Treiber (usbhid)
+        Taste 31 (Clutch, aufgedrucktes Symbol ein "i" im Kreis) nicht mehr
+        als normalen Joystick-Button ein - sie bleibt dann unsichtbar,
+        obwohl sie physisch gedrueckt wird. Ob dieser Befehl ueber den
+        Daemon-Client (x52ctl) oder nur direkt per libusb (x52cli) geht,
+        ist je nach libx52-Version unterschiedlich - im Zweifel die
+        Vorlage unten gegen `--help` des jeweiligen Programms pruefen.
+        """
+        return self._run(self._build(self.config.clutch, value="1" if enabled else "0"))
+
     # -- Testabläufe -------------------------------------------------------
 
     def led_sweep(self) -> list[CommandResult]:

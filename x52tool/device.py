@@ -209,6 +209,13 @@ def evdev_button_name(code: int) -> str:
 # unter Windows waren sie fest mit Uhr/Stoppuhr verdrahtet und nicht frei
 # nutzbar.
 #
+# 31 (Clutch, aufgedrucktes Symbol ein "i" im Kreis) ist zugleich Taste und
+# Firmware-Umschalter: ist der Kupplungsmodus (Clutch Mode) am Geraet aktiv,
+# liest usbhid die Taste nicht mehr als normalen Joystick-Button ein - sie
+# bleibt dann in diesem Programm unsichtbar, obwohl sie physisch gedrueckt
+# wird. Abschalten laesst sich das ueber das libx52-CLI (siehe LED/MFD-
+# Reiter), Befehl und genaue Flag-Syntax je nach Version unbestaetigt.
+#
 # Die Zuordnung haengt an den evdev-Codes (deterministisch), nicht an der
 # Listenposition. Die ersten 12 Tasten fallen auf die eigens fuer Joysticks
 # vorgesehenen Kernel-Konstanten BTN_TRIGGER..BTN_BASE6. WICHTIG: zwischen
@@ -224,12 +231,12 @@ _GAP1, _GAP2, _GAP3 = ecodes.BTN_BASE6 + 1, ecodes.BTN_BASE6 + 2, ecodes.BTN_BAS
 X52_PRO_BUTTON_LABELS: dict[int, str] = {
     ecodes.BTN_TRIGGER: "Trigger",
     ecodes.BTN_THUMB: "Fire",
-    ecodes.BTN_THUMB2: "A",
-    ecodes.BTN_TOP: "B",
-    ecodes.BTN_TOP2: "C",
+    ecodes.BTN_THUMB2: "Fire A",
+    ecodes.BTN_TOP: "Fire B",
+    ecodes.BTN_TOP2: "Fire C",
     ecodes.BTN_PINKIE: "Pinkie Trigger",
-    ecodes.BTN_BASE: "D",
-    ecodes.BTN_BASE2: "E",
+    ecodes.BTN_BASE: "Fire D",
+    ecodes.BTN_BASE2: "Fire E",
     ecodes.BTN_BASE3: "T1",
     ecodes.BTN_BASE4: "T2",
     ecodes.BTN_BASE5: "T3",
@@ -252,7 +259,7 @@ X52_PRO_BUTTON_LABELS: dict[int, str] = {
     ecodes.BTN_TRIGGER_HAPPY12: "Mode Red (MFD Mode 1)",
     ecodes.BTN_TRIGGER_HAPPY13: "Mode Purple (MFD Mode 2)",
     ecodes.BTN_TRIGGER_HAPPY14: "Mode Blue (MFD Mode 3)",
-    ecodes.BTN_TRIGGER_HAPPY15: "i",
+    ecodes.BTN_TRIGGER_HAPPY15: "Clutch",
     ecodes.BTN_TRIGGER_HAPPY16: "Rad links gedrueckt",
     ecodes.BTN_TRIGGER_HAPPY17: "Start/Stop",
     ecodes.BTN_TRIGGER_HAPPY18: "Reset",

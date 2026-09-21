@@ -33,6 +33,7 @@ class BackendConfig:
     led: str = "{bin} led {led} {state}"
     mfd: str = "{bin} mfd {line} {text}"
     brightness: str = "{bin} bri {target} {value}"
+    clutch: str = "{bin} -c {value}"
 
 
 @dataclass

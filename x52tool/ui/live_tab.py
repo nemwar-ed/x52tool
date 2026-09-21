@@ -108,6 +108,7 @@ class LiveTab(QWidget):
         if hat_widgets:
             hats_box = QGroupBox("Hats")
             hats_layout = QHBoxLayout(hats_box)
+            hats_layout.addStretch(1)
             for widget in hat_widgets:
                 hats_layout.addWidget(widget)
             hats_layout.addStretch(1)
