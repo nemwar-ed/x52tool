@@ -242,7 +242,7 @@ class ButtonGrid(QWidget):
     Kernel-Name ist das, was auch in evtest oder einer .binds-Datei steht.
     """
 
-    COLUMNS = 6
+    COLUMNS = 4
 
     def __init__(self, buttons: list[Button], parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -276,9 +276,14 @@ class ButtonGrid(QWidget):
         for i, button in enumerate(buttons):
             cell = QLabel(button.label)
             cell.setFont(small)
+            cell.setWordWrap(True)
+            cell.setMinimumHeight(36)
             cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
             cell.setStyleSheet(self.style_idle)
-            cell.setToolTip(f"evdev-Code {button.code} (0x{button.code:x})")
+            cell.setToolTip(
+                f"{button.evdev_name}  (0x{button.code:x})\n"
+                "Physische Bezeichnung an echter Hardware bestaetigt."
+            )
             grid.addWidget(cell, i // self.COLUMNS, i % self.COLUMNS)
             self.cells[button.code] = cell
             self._state[button.code] = False

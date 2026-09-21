@@ -144,6 +144,8 @@ AXIS_LABELS: dict[int, str] = {
     ABS_MISC_Y: "Ministick Y (Maus-Stick, digital)",
     ecodes.ABS_THROTTLE: "Schieberegler",
     ecodes.ABS_RUDDER: "Rudder",
+    ecodes.ABS_RX: "Rotary 1",
+    ecodes.ABS_RY: "Rotary 2",
     ecodes.ABS_HAT0X: "Hat 1 X",
     ecodes.ABS_HAT0Y: "Hat 1 Y",
 }
@@ -184,27 +186,92 @@ def axis_label(code: int) -> str:
 
 
 def evdev_button_name(code: int) -> str:
-    """Kernel-Name der Taste, etwa BTN_TRIGGER.
-
-    Es gibt keine verlaessliche, offizielle Saitek-Nummerierung zum
-    Nachschlagen - jede Quelle dazu sagt sinngemaess "zaehl selbst durch".
-    Der Kernel-Name ist das einzige, was sich nicht erfindet, deshalb steht
-    er direkt in der Kachel statt nur im Tooltip.
-    """
+    """Kernel-Name der Taste, etwa BTN_TRIGGER."""
     raw = ecodes.BTN.get(code) or ecodes.KEY.get(code) or f"CODE {code}"
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
     return str(raw)
 
 
-def button_label(index: int, evdev_name: str) -> str:
-    """Anzeigetext: fortlaufende Nummer und Kernel-Name zusammen.
+# --------------------------------------------------------------------------
+# Physische Tastenbeschriftung fuer den X52 Pro
+#
+# Von Oliver an seinem eigenen X52 Pro Taste fuer Taste im Live-Test
+# durchgezaehlt und bestaetigt (nicht mehr nur aus Community-Quellen
+# rekonstruiert). Zwei Stellen wichen von der ersten, aus Foren
+# zusammengetragenen Fassung ab: Position 16-19 sind Maustasten/Mausrad
+# (nicht ein Daumenrad am Ministick), und Position 39 ist "Rad rechts
+# gedrueckt" statt einer eigenen MFD-Auswahltaste.
+#
+# 28/29/30 (Mode Red/Purple/Blue) sind ein 3-Stufen-Drehschalter, kein
+# Momentkontakt: genau einer der drei Codes ist immer aktiv, das ist kein
+# Fehler. Die Farbe entspricht dem am Geraet eingestellten MFD-Modus 1/2/3.
+#
+# Wie sich 32-39 (die beiden Raeder samt Start/Stop/Reset an der MFD-Basis)
+# im Zusammenspiel mit mehrseitigen MFD-Anzeigen verhalten, ist noch offen -
+# unter Windows waren sie fest mit Uhr/Stoppuhr verdrahtet und nicht frei
+# nutzbar.
+#
+# Die Zuordnung haengt an den evdev-Codes (deterministisch), nicht an der
+# Listenposition: die ersten 12 Tasten fallen auf die eigens fuer Joysticks
+# vorgesehenen Kernel-Konstanten BTN_TRIGGER..BTN_BASE6. Fuer die
+# restlichen 27 Tasten kennt der Kernel keine joystick-spezifischen Namen
+# mehr, sie laufen ueber BTN_DEAD und die generischen BTN_TRIGGER_HAPPYn.
+X52_PRO_BUTTON_LABELS: dict[int, str] = {
+    ecodes.BTN_TRIGGER: "Trigger",
+    ecodes.BTN_THUMB: "Fire",
+    ecodes.BTN_THUMB2: "A",
+    ecodes.BTN_TOP: "B",
+    ecodes.BTN_TOP2: "C",
+    ecodes.BTN_PINKIE: "Pinkie Trigger",
+    ecodes.BTN_BASE: "D",
+    ecodes.BTN_BASE2: "E",
+    ecodes.BTN_BASE3: "T1",
+    ecodes.BTN_BASE4: "T2",
+    ecodes.BTN_BASE5: "T3",
+    ecodes.BTN_BASE6: "T4",
+    ecodes.BTN_DEAD: "T5",
+    ecodes.BTN_TRIGGER_HAPPY1: "T6",
+    ecodes.BTN_TRIGGER_HAPPY2: "Second Trigger",
+    ecodes.BTN_TRIGGER_HAPPY3: "Mouse Button 1 (links)",
+    ecodes.BTN_TRIGGER_HAPPY4: "Mouse Wheel hoch",
+    ecodes.BTN_TRIGGER_HAPPY5: "Mouse Wheel runter",
+    ecodes.BTN_TRIGGER_HAPPY6: "Mouse Button 2 (rechts)",
+    ecodes.BTN_TRIGGER_HAPPY7: "POV2 hoch",
+    ecodes.BTN_TRIGGER_HAPPY8: "POV2 rechts",
+    ecodes.BTN_TRIGGER_HAPPY9: "POV2 runter",
+    ecodes.BTN_TRIGGER_HAPPY10: "POV2 links",
+    ecodes.BTN_TRIGGER_HAPPY11: "POV3 hoch",
+    ecodes.BTN_TRIGGER_HAPPY12: "POV3 rechts",
+    ecodes.BTN_TRIGGER_HAPPY13: "POV3 runter",
+    ecodes.BTN_TRIGGER_HAPPY14: "POV3 links",
+    ecodes.BTN_TRIGGER_HAPPY15: "Mode Red (MFD Mode 1)",
+    ecodes.BTN_TRIGGER_HAPPY16: "Mode Purple (MFD Mode 2)",
+    ecodes.BTN_TRIGGER_HAPPY17: "Mode Blue (MFD Mode 3)",
+    ecodes.BTN_TRIGGER_HAPPY18: "i",
+    ecodes.BTN_TRIGGER_HAPPY19: "Rad links gedrueckt",
+    ecodes.BTN_TRIGGER_HAPPY20: "Start/Stop",
+    ecodes.BTN_TRIGGER_HAPPY21: "Reset",
+    ecodes.BTN_TRIGGER_HAPPY22: "Rad links hoch (PG Up)",
+    ecodes.BTN_TRIGGER_HAPPY23: "Rad links runter (PG Down)",
+    ecodes.BTN_TRIGGER_HAPPY24: "Rad rechts hoch",
+    ecodes.BTN_TRIGGER_HAPPY25: "Rad rechts runter",
+    ecodes.BTN_TRIGGER_HAPPY26: "Rad rechts gedrueckt",
+}
 
-    Die Nummer ist nur die Reihenfolge, in der der Kernel die Codes meldet -
-    keine Saitek-Tastennummer. Der Kernel-Name daneben ist das, was auch in
-    evtest, jstest-gtk oder einer .binds-Datei auftaucht und sich damit
-    tatsaechlich nachschlagen laesst.
+
+def button_label(index: int, evdev_name: str, code: int = -1, is_pro: bool = False) -> str:
+    """Anzeigetext fuer eine Taste.
+
+    Ist das Geraet als X52 Pro erkannt und der Code in der rekonstruierten
+    Tabelle bekannt, steht die physische Bezeichnung vorne (z.B. "Fire"),
+    der Kernel-Name dahinter in Klammern - so bleibt die Gegenprobe im
+    Live-Test jederzeit moeglich, ohne der Tabelle blind vertrauen zu
+    muessen. Sonst wie bisher: Nummer und Kernel-Name.
     """
+    physical = X52_PRO_BUTTON_LABELS.get(code) if is_pro else None
+    if physical:
+        return f"{index + 1}  {physical}"
     return f"{index + 1}  {evdev_name}"
 
 
@@ -311,7 +378,12 @@ class X52Device:
         for index, code in enumerate(sorted(caps.get(ecodes.EV_KEY, []))):
             name = evdev_button_name(code)
             self.buttons.append(
-                Button(code=code, label=button_label(index, name), index=index, evdev_name=name)
+                Button(
+                    code=code,
+                    label=button_label(index, name, code, self.is_pro),
+                    index=index,
+                    evdev_name=name,
+                )
             )
 
     def axis(self, code: int) -> Axis | None:

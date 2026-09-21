@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from evdev import ecodes
 
-from x52tool.device import _is_joystick, _name_tokens
+from x52tool.device import X52_PRO_BUTTON_LABELS, _is_joystick, _name_tokens, button_label, evdev_button_name
 
 
 class FakeCapsDevice:
@@ -76,6 +76,55 @@ def test_name_tokens_ignoriert_fremdgeraet():
     main = _name_tokens("Logitech X52 Professional H.O.T.A.S.")
     keyboard = _name_tokens("AT Translated Set 2 keyboard")
     assert not (main & keyboard)
+
+
+def test_x52_pro_button_mapping_hat_39_eintraege():
+    """Der echte X52 Pro hat 39 Tasten - die Tabelle darf nicht schrumpfen."""
+    assert len(X52_PRO_BUTTON_LABELS) == 39
+
+
+def test_x52_pro_button_mapping_reihenfolge_stimmt_mit_geraet_ueberein():
+    """Die ersten 12 sortierten Codes muessen exakt Trigger..T4 ergeben -
+    von Oliver an echter Hardware bestaetigt."""
+    codes = sorted(X52_PRO_BUTTON_LABELS.keys())
+    erwartet = [
+        "Trigger", "Fire", "A", "B", "C", "Pinkie Trigger", "D", "E",
+        "T1", "T2", "T3", "T4",
+    ]
+    tatsaechlich = [X52_PRO_BUTTON_LABELS[c] for c in codes[:12]]
+    assert tatsaechlich == erwartet
+
+
+def test_x52_pro_button_mapping_maus_und_mfd_stellen_korrigiert():
+    """Zwei Stellen, an denen die erste (Community-)Fassung falsch lag und
+    Oliver an echter Hardware korrigiert hat: 16-19 sind Maustasten/-rad,
+    nicht ein Daumenrad am Ministick; 39 ist 'Rad rechts gedrueckt', keine
+    eigene MFD-Auswahltaste."""
+    codes = sorted(X52_PRO_BUTTON_LABELS.keys())
+    assert X52_PRO_BUTTON_LABELS[codes[15]] == "Mouse Button 1 (links)"  # Nr. 16
+    assert X52_PRO_BUTTON_LABELS[codes[18]] == "Mouse Button 2 (rechts)"  # Nr. 19
+    assert X52_PRO_BUTTON_LABELS[codes[38]] == "Rad rechts gedrueckt"  # Nr. 39
+
+
+def test_button_label_nutzt_physischen_namen_nur_wenn_pro():
+    """Ohne is_pro=True (unbekanntes/nicht-Pro-Geraet) nie die Pro-Tabelle
+    anwenden - der normale X52 (ohne Pro) hat eine andere Tastenbelegung."""
+    from evdev import ecodes
+    name = evdev_button_name(ecodes.BTN_TRIGGER)
+    mit_pro = button_label(0, name, ecodes.BTN_TRIGGER, is_pro=True)
+    ohne_pro = button_label(0, name, ecodes.BTN_TRIGGER, is_pro=False)
+    assert mit_pro == "1  Trigger"
+    assert ohne_pro == f"1  {name}"
+
+
+def test_axis_label_rotary_achsen():
+    """ABS_RX/ABS_RY sind die beiden Rotary-Dreher am Schubhebel, von Oliver
+    bestaetigt - vorher fielen sie faelschlich unter 'Ministick'."""
+    from evdev import ecodes
+    from x52tool.device import axis_label
+    assert axis_label(ecodes.ABS_RX) == "Rotary 1"
+    assert axis_label(ecodes.ABS_RY) == "Rotary 2"
+
 
 
 if __name__ == "__main__":
