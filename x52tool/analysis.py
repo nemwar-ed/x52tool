@@ -130,6 +130,21 @@ class AxisMeasurement:
         return self.info.as_percent(raw_units)
 
 
+def guided_axis_queue(axes: list[Axis], only_code: int | None = None) -> list[Axis]:
+    """Baut die Reihenfolge fuer die gefuehrte Messung.
+
+    Digitale Achsen (Hats, Ministick) fallen raus - eine Ruhe- oder
+    Bereichsmessung ergibt fuer die keinen Sinn. `only_code` beschraenkt
+    auf eine einzelne Achse (fuer "nur diese eine Achse messen"); None
+    heisst "alle, der Reihe nach", in der Geraete-Reihenfolge wie im
+    Live-Test.
+    """
+    candidates = [ax for ax in axes if not ax.is_digital]
+    if only_code is None:
+        return candidates
+    return [ax for ax in candidates if ax.code == only_code]
+
+
 class Recorder:
     """Sammelt Stichproben des aktuellen Zustands.
 

@@ -215,6 +215,44 @@ def test_backend_set_clutch_baut_erwarteten_befehl():
 
 
 
+def test_guided_axis_queue_schliesst_digitale_achsen_aus():
+    """Hats/Ministick duerfen in der gefuehrten Messung nie auftauchen -
+    eine Ruhe- oder Bereichsmessung ergibt fuer sie keinen Sinn."""
+    from evdev import ecodes
+
+    from x52tool.analysis import guided_axis_queue
+    from x52tool.device import AbsInfo, Axis
+
+    def mk(code, mx):
+        info = AbsInfo(mx // 2, 0, mx, 0, 0, 0)
+        return Axis(code=code, label=str(code), info=info, baseline=info.copy())
+
+    axes = [
+        mk(ecodes.ABS_X, 1023),
+        mk(ecodes.ABS_HAT0X, 1),  # digital, muss rausfallen
+        mk(ecodes.ABS_THROTTLE, 255),
+    ]
+    queue = guided_axis_queue(axes)
+    assert [ax.code for ax in queue] == [ecodes.ABS_X, ecodes.ABS_THROTTLE]
+
+
+def test_guided_axis_queue_mit_einzelner_achse():
+    """only_code beschraenkt die Warteschlange auf genau eine Achse."""
+    from evdev import ecodes
+
+    from x52tool.analysis import guided_axis_queue
+    from x52tool.device import AbsInfo, Axis
+
+    def mk(code, mx):
+        info = AbsInfo(mx // 2, 0, mx, 0, 0, 0)
+        return Axis(code=code, label=str(code), info=info, baseline=info.copy())
+
+    axes = [mk(ecodes.ABS_X, 1023), mk(ecodes.ABS_Y, 1023)]
+    queue = guided_axis_queue(axes, only_code=ecodes.ABS_Y)
+    assert [ax.code for ax in queue] == [ecodes.ABS_Y]
+
+
+
 if __name__ == "__main__":
     # Laeuft auch ohne pytest - fuer eine schnelle Kontrolle per
     # 'python3 tests/test_device_logic.py'.

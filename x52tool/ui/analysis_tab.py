@@ -5,6 +5,8 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -17,8 +19,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..analysis import AxisMeasurement, Recorder
-from ..device import AbsInfo, X52Device
+from ..analysis import AxisMeasurement, Recorder, guided_axis_queue
+from ..device import AbsInfo, Axis, X52Device
 
 SAMPLE_INTERVAL_MS = 10  # 100 Hz
 
@@ -39,6 +41,8 @@ RANGE_COLUMNS = [
     "Bewertung",
 ]
 
+ALL_AXES_ITEM = "Alle Achsen (der Reihe nach)"
+
 
 class AnalysisTab(QWidget):
     # {abs_code: {"flat": N}} oder {abs_code: {"fuzz": N}} - je nachdem, ob
@@ -51,9 +55,20 @@ class AnalysisTab(QWidget):
         self.device: X52Device | None = None
         self.recorder: Recorder | None = None
         self.mode = "rest"
-        self._suggestions: dict[int, int] = {}
+        self._suggestions: dict[int, dict[str, int]] = {}
         self._fuzz_backup: dict[int, AbsInfo] = {}
         self._ticks_left = 0
+
+        # -- Zustand der gefuehrten Messung ---------------------------------
+        self._guided = False
+        self._guided_axes: list[Axis] = []
+        self._guided_pos = 0
+        self._guided_phase = "rest"
+        self._guided_rest: dict[int, AxisMeasurement] = {}
+        self._guided_range: dict[int, AxisMeasurement] = {}
+        self._last_guided_rest: list[AxisMeasurement] = []
+        self._last_guided_range: list[AxisMeasurement] = []
+        self._showing_guided_range = False
 
         self.timer = QTimer(self)
         self.timer.setInterval(SAMPLE_INTERVAL_MS)
@@ -106,6 +121,17 @@ class AnalysisTab(QWidget):
         self.btn_stop.clicked.connect(self._stop)
         self.btn_apply.clicked.connect(self._emit_suggestions)
 
+        controls = QHBoxLayout()
+        controls.addWidget(QLabel("Dauer"))
+        controls.addWidget(self.seconds)
+        controls.addWidget(self.zero_fuzz)
+        controls.addStretch(1)
+        controls.addWidget(self.btn_rest)
+        controls.addWidget(self.btn_range)
+        controls.addWidget(self.btn_stop)
+
+        guided_box = self._build_guided_box()
+
         self.progress = QProgressBar()
         self.progress.setTextVisible(True)
         self.progress.setValue(0)
@@ -118,21 +144,50 @@ class AnalysisTab(QWidget):
             QHeaderView.ResizeMode.Stretch
         )
 
-        controls = QHBoxLayout()
-        controls.addWidget(QLabel("Dauer"))
-        controls.addWidget(self.seconds)
-        controls.addWidget(self.zero_fuzz)
-        controls.addStretch(1)
-        controls.addWidget(self.btn_rest)
-        controls.addWidget(self.btn_range)
-        controls.addWidget(self.btn_stop)
+        bottom_row = QHBoxLayout()
+        self.btn_toggle_view = QPushButton("Bereichsmessung anzeigen")
+        self.btn_toggle_view.setVisible(False)
+        self.btn_toggle_view.clicked.connect(self._toggle_guided_view)
+        bottom_row.addWidget(self.btn_toggle_view)
+        bottom_row.addStretch(1)
+        bottom_row.addWidget(self.btn_apply)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.explain)
+        layout.addWidget(guided_box)
         layout.addLayout(controls)
         layout.addWidget(self.progress)
         layout.addWidget(self.table, 1)
-        layout.addWidget(self.btn_apply, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(bottom_row)
+
+    def _build_guided_box(self) -> QGroupBox:
+        box = QGroupBox("Gefuehrte Messung (eine Achse nach der anderen)")
+        layout = QVBoxLayout(box)
+
+        explain = QLabel(
+            "Statt alle Achsen gleichzeitig durcheinanderzubewegen: eine "
+            "Achse auswaehlen (oder alle der Reihe nach), das Tool fuehrt "
+            "dich durch Ruhe- und Bereichsmessung fuer jede einzeln."
+        )
+        explain.setWordWrap(True)
+        layout.addWidget(explain)
+
+        row = QHBoxLayout()
+        self.axis_picker = QComboBox()
+        self.axis_picker.addItem(ALL_AXES_ITEM, None)
+        self.btn_guided_start = QPushButton("Gefuehrt starten")
+        self.btn_guided_start.clicked.connect(self._start_guided)
+        row.addWidget(QLabel("Achse"))
+        row.addWidget(self.axis_picker, 1)
+        row.addWidget(self.btn_guided_start)
+        layout.addLayout(row)
+
+        self.guided_instruction = QLabel("")
+        self.guided_instruction.setWordWrap(True)
+        self.guided_instruction.setStyleSheet("font-weight: 600;")
+        layout.addWidget(self.guided_instruction)
+
+        return box
 
     # -- Geraet ------------------------------------------------------------
 
@@ -142,22 +197,32 @@ class AnalysisTab(QWidget):
         self.table.setRowCount(0)
         self._suggestions = {}
         self.btn_apply.setEnabled(False)
-        for btn in (self.btn_rest, self.btn_range):
+        self.btn_toggle_view.setVisible(False)
+        self.guided_instruction.setText("")
+        for btn in (self.btn_rest, self.btn_range, self.btn_guided_start):
             btn.setEnabled(device is not None)
 
-    # -- Messung -----------------------------------------------------------
+        self.axis_picker.clear()
+        self.axis_picker.addItem(ALL_AXES_ITEM, None)
+        if device is not None:
+            for axis in guided_axis_queue(device.axes):
+                self.axis_picker.addItem(axis.label, axis.code)
 
-    def _start(self, mode: str) -> None:
+    # -- Manuelle Messung (alle Achsen gleichzeitig) ------------------------
+
+    def _start(self, mode: str, codes: list[int] | None = None) -> None:
         if self.device is None:
             return
         self.mode = mode
-        self.recorder = Recorder(self.device)
+        self.recorder = Recorder(self.device, codes=codes)
         self._ticks_left = int(self.seconds.value() * 1000 / SAMPLE_INTERVAL_MS)
         self.progress.setMaximum(self._ticks_left)
         self.progress.setValue(0)
         self.btn_stop.setEnabled(True)
         self.btn_rest.setEnabled(False)
         self.btn_range.setEnabled(False)
+        self.btn_guided_start.setEnabled(False)
+        self.axis_picker.setEnabled(False)
         self.btn_apply.setEnabled(False)
 
         if mode == "rest" and self.zero_fuzz.isChecked():
@@ -206,20 +271,113 @@ class AnalysisTab(QWidget):
         self.btn_stop.setEnabled(False)
         self.btn_rest.setEnabled(self.device is not None)
         self.btn_range.setEnabled(self.device is not None)
+        self.btn_guided_start.setEnabled(self.device is not None)
+        self.axis_picker.setEnabled(True)
+        if self._guided:
+            self._guided = False
+            self.guided_instruction.setText("Abgebrochen.")
 
     def _finish(self) -> None:
         self.timer.stop()
         self._restore_fuzz()
-        self.btn_stop.setEnabled(False)
-        self.btn_rest.setEnabled(True)
-        self.btn_range.setEnabled(True)
         if self.recorder is None:
             return
         results = self.recorder.results()
+
+        if self._guided:
+            self._finish_guided_step(results)
+            return
+
+        self.btn_stop.setEnabled(False)
+        self.btn_rest.setEnabled(True)
+        self.btn_range.setEnabled(True)
+        self.btn_guided_start.setEnabled(True)
+        self.axis_picker.setEnabled(True)
         if self.mode == "rest":
             self._show_rest(results)
         else:
             self._show_range(results)
+
+    # -- Gefuehrte Messung ---------------------------------------------------
+
+    def _start_guided(self) -> None:
+        if self.device is None:
+            return
+        only_code = self.axis_picker.currentData()
+        queue = guided_axis_queue(self.device.axes, only_code)
+        if not queue:
+            return
+
+        self._guided = True
+        self._guided_axes = queue
+        self._guided_pos = 0
+        self._guided_rest = {}
+        self._guided_range = {}
+        self.btn_toggle_view.setVisible(False)
+        self._begin_guided_step()
+
+    def _begin_guided_step(self) -> None:
+        axis = self._guided_axes[self._guided_pos]
+        total = len(self._guided_axes)
+        self._guided_phase = "rest"
+        self.guided_instruction.setText(
+            f"Achse {self._guided_pos + 1} von {total}: {axis.label}\n"
+            "Jetzt loslassen, nichts anfassen - Ruhemessung laeuft."
+        )
+        self._start("rest", codes=[axis.code])
+
+    def _finish_guided_step(self, results: list[AxisMeasurement]) -> None:
+        axis = self._guided_axes[self._guided_pos]
+        total = len(self._guided_axes)
+
+        if self.mode == "rest":
+            if results:
+                self._guided_rest[axis.code] = results[0]
+            self.guided_instruction.setText(
+                f"Achse {self._guided_pos + 1} von {total}: {axis.label}\n"
+                "Jetzt einmal LANGSAM von Anschlag zu Anschlag bewegen."
+            )
+            self._start("range", codes=[axis.code])
+            return
+
+        # mode == "range": diese Achse ist fertig, weiter zur naechsten.
+        if results:
+            self._guided_range[axis.code] = results[0]
+        self._guided_pos += 1
+        if self._guided_pos < len(self._guided_axes):
+            self._begin_guided_step()
+        else:
+            self._finish_guided()
+
+    def _finish_guided(self) -> None:
+        self._guided = False
+        self.btn_stop.setEnabled(False)
+        self.btn_rest.setEnabled(True)
+        self.btn_range.setEnabled(True)
+        self.btn_guided_start.setEnabled(True)
+        self.axis_picker.setEnabled(True)
+        self.guided_instruction.setText(
+            f"Gefuehrte Messung abgeschlossen ({len(self._guided_axes)} Achse(n))."
+        )
+
+        rest_results = list(self._guided_rest.values())
+        range_results = list(self._guided_range.values())
+        self._last_guided_rest = rest_results
+        self._last_guided_range = range_results
+        self._showing_guided_range = False
+
+        self._show_rest(rest_results)
+        self.btn_toggle_view.setText("Bereichsmessung anzeigen")
+        self.btn_toggle_view.setVisible(bool(range_results))
+
+    def _toggle_guided_view(self) -> None:
+        if self._showing_guided_range:
+            self._show_rest(self._last_guided_rest)
+            self.btn_toggle_view.setText("Bereichsmessung anzeigen")
+        else:
+            self._show_range(self._last_guided_range)
+            self.btn_toggle_view.setText("Ruhemessung anzeigen")
+        self._showing_guided_range = not self._showing_guided_range
 
     # -- Darstellung -------------------------------------------------------
 
