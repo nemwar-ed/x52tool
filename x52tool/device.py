@@ -165,6 +165,26 @@ DIGITAL_AXES = {
     ABS_MISC_Y,
 }
 
+# Achsen ohne verlaessliches Zentrum fuer eine unbeaufsichtigte
+# Ruhemessung. Zwei verschiedene Gruende, dieselbe praktische Konsequenz:
+#   - Schubhebel/Schieberegler (ABS_Z, ABS_THROTTLE) haben ueberhaupt kein
+#     Mitten-Konzept: sie laufen frei von Anschlag zu Anschlag, ohne Feder.
+#   - Rotary 1/2 (ABS_RX, ABS_RY) haben zwar eine echte mechanische Mitte
+#     (Oliver: "eine mechanische Mitte, aber keine Ruecksetllung"), aber
+#     keine Feder, die sie dorthin zurueckbringt. Eine automatische,
+#     unbeaufsichtigte Messung kann nicht pruefen, ob der Regler gerade
+#     zufaellig auf der Mitte steht - deshalb waere ein Deadzone-Vorschlag
+#     (den der Kernel immer um (min+max)/2 legt) an einer voellig falschen
+#     Stelle, wenn der Regler woanders steht.
+# Fuer alle vier gilt deshalb: kein Deadzone-Vorschlag (flat), stattdessen
+# ein Fuzz-Vorschlag - der filtert Rauschen unabhaengig von der Position.
+NO_RELIABLE_CENTER_AXES = {
+    ecodes.ABS_Z,
+    ecodes.ABS_THROTTLE,
+    ecodes.ABS_RX,
+    ecodes.ABS_RY,
+}
+
 # Hat-Achsenpaare (X-Code -> Y-Code), fuer die Kompass-Darstellung im
 # Live-Test statt zweier Balken. Bislang nur Hat 1 - Oliver hat bestaetigt,
 # dass POV-Hat 2 und 3 beim X52 Pro als Tasten kommen, nicht als Achsen.

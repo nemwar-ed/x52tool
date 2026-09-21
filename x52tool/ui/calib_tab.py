@@ -243,12 +243,21 @@ class CalibrationTab(QWidget):
         self._populate(self.device)
         self.calibrationChanged.emit()
 
-    def apply_suggestions(self, suggestions: dict[int, int]) -> None:
-        """Wird vom Analyse-Reiter aufgerufen."""
-        for code, flat in suggestions.items():
+    def apply_suggestions(self, suggestions: dict[int, dict[str, int]]) -> None:
+        """Wird vom Analyse-Reiter aufgerufen.
+
+        Jede Achse liefert entweder eine Deadzone- oder eine Fuzz-
+        Empfehlung (nie beides) - je nachdem, ob sie eine verlaessliche
+        Mitte hat. Siehe AxisMeasurement.has_reliable_center.
+        """
+        for code, values in suggestions.items():
             spins = self._spins.get(code)
-            if spins:
-                spins["flat"].setValue(flat)
+            if not spins:
+                continue
+            if "flat" in values:
+                spins["flat"].setValue(values["flat"])
+            if "fuzz" in values:
+                spins["fuzz"].setValue(values["fuzz"])
         self._update_percent_column()
 
     # -- Profile und Export ------------------------------------------------

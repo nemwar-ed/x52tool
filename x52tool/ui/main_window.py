@@ -277,7 +277,8 @@ class MainWindow(QMainWindow):
             self.tab_live.refresh(self.state.axes, self.state.buttons)
 
     def _on_suggestions(self, suggestions: dict) -> None:
-        self.tab_calib.apply_suggestions({int(k): int(v) for k, v in suggestions.items()})
+        cleaned = {int(code): dict(values) for code, values in suggestions.items()}
+        self.tab_calib.apply_suggestions(cleaned)
         self.tabs.setCurrentWidget(self.tab_calib)
 
     # -- Ende --------------------------------------------------------------

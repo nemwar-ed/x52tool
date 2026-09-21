@@ -3,8 +3,11 @@
 Zwei Messungen, die es so fertig noch nicht gibt:
 
 Ruhemessung   Stick und Schubhebel loslassen, N Sekunden mitschreiben.
-              Ergebnis: Mittenversatz und Rauschbreite pro Achse, daraus
-              ein Deadzone-Vorschlag.
+              Ergebnis: Rauschbreite pro Achse, daraus ein Vorschlag - eine
+              Deadzone um die Mitte fuer Achsen mit Federrueckstellung
+              (Stick, Twist), sonst ein Fuzz-Wert (Schubhebel,
+              Schieberegler, Rotary 1/2), der unabhaengig von der Position
+              wirkt. Siehe NO_RELIABLE_CENTER_AXES in device.py.
 
 Bereichsmessung  Jede Achse einmal voll ausfahren. Ergebnis: erreichter
                  Bereich gegen den vom Kernel gemeldeten Bereich. Faellt
@@ -82,13 +85,46 @@ class AxisMeasurement:
         return 100.0 * self.spread / self.info.span
 
     @property
-    def suggested_flat(self) -> int:
-        """Deadzone-Vorschlag aus der Ruhemessung."""
-        if self.info.span <= 8:  # digitale Hats
-            return 0
+    def has_reliable_center(self) -> bool:
+        """False fuer Achsen, bei denen eine unbeaufsichtigte Ruhemessung
+        die Mitte nicht verlaesslich trifft (siehe NO_RELIABLE_CENTER_AXES
+        in device.py) - dort ist ein Deadzone-Vorschlag um (min+max)/2
+        sinnlos, weil die Achse ueberall stehen kann."""
+        from .device import NO_RELIABLE_CENTER_AXES
+
+        return self.code not in NO_RELIABLE_CENTER_AXES
+
+    def _raw_margin(self) -> int:
         raw = math.ceil(self.spread / 2 * DEADZONE_MARGIN)
         floor = max(2, math.ceil(self.info.span * DEADZONE_FLOOR_FRACTION))
         return 0 if raw < floor else raw
+
+    @property
+    def suggested_flat(self) -> int:
+        """Deadzone-Vorschlag aus der Ruhemessung.
+
+        Nur fuer Achsen mit verlaesslicher Mitte (siehe has_reliable_center)
+        - sonst 0, weil eine Deadzone um (min+max)/2 an der falschen Stelle
+        laege.
+        """
+        if self.info.span <= 8:  # digitale Hats
+            return 0
+        if not self.has_reliable_center:
+            return 0
+        return self._raw_margin()
+
+    @property
+    def suggested_fuzz(self) -> int:
+        """Fuzz-Vorschlag aus der Ruhemessung.
+
+        Anders als die Deadzone filtert fuzz Rauschen unabhaengig von der
+        Position - das ist der richtige Hebel fuer Achsen ohne
+        verlaessliche Mitte (Schubhebel, Schieberegler, Rotary 1/2), aber
+        genauso fuer alle anderen gueltig.
+        """
+        if self.info.span <= 8:  # digitale Hats
+            return 0
+        return self._raw_margin()
 
     def percent(self, raw_units: float) -> float:
         return self.info.as_percent(raw_units)

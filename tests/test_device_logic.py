@@ -154,6 +154,46 @@ def test_pov_button_gruppen_zeigen_auf_bekannte_tasten():
         assert X52_PRO_BUTTON_LABELS[left] == f"{prefix} links"
 
 
+def test_achsen_ohne_verlaessliche_mitte_bekommen_nur_fuzz_vorschlag():
+    """Schubhebel, Schieberegler, Rotary 1/2 (siehe Olivers Hinweis zur
+    fehlenden Federrueckstellung): kein Deadzone-Vorschlag, sondern ein
+    Fuzz-Vorschlag, unabhaengig davon, wo die Achse gerade steht."""
+    from evdev import ecodes
+
+    from x52tool.analysis import AxisMeasurement
+    from x52tool.device import AbsInfo, NO_RELIABLE_CENTER_AXES
+
+    assert NO_RELIABLE_CENTER_AXES == {
+        ecodes.ABS_Z, ecodes.ABS_THROTTLE, ecodes.ABS_RX, ecodes.ABS_RY,
+    }
+
+    # Schieberegler, weit ab der Mitte stehend, mit echtem Rauschen.
+    info = AbsInfo(value=20, minimum=0, maximum=255, fuzz=0, flat=0, resolution=0)
+    m = AxisMeasurement(code=ecodes.ABS_THROTTLE, label="Schieberegler", info=info)
+    m.samples = [18, 20, 22, 19, 21] * 20
+
+    assert m.has_reliable_center is False
+    assert m.suggested_flat == 0
+    assert m.suggested_fuzz > 0
+
+
+def test_achsen_mit_verlaesslicher_mitte_bekommen_deadzone_vorschlag():
+    """Stick X (Federrueckstellung) bekommt weiterhin einen normalen
+    Deadzone-Vorschlag, wie vor der Aenderung."""
+    from evdev import ecodes
+
+    from x52tool.analysis import AxisMeasurement
+    from x52tool.device import AbsInfo
+
+    info = AbsInfo(value=511, minimum=0, maximum=1023, fuzz=0, flat=0, resolution=0)
+    m = AxisMeasurement(code=ecodes.ABS_X, label="Stick X", info=info)
+    m.samples = [505, 511, 517, 508, 514] * 20
+
+    assert m.has_reliable_center is True
+    assert m.suggested_flat > 0
+    assert m.suggested_flat == m.suggested_fuzz  # gleiche Formel, nur die Anwendung unterscheidet sich
+
+
 
 def test_x52_pro_button_31_heisst_clutch():
     """Taste 31 (Symbol: ein 'i' im Kreis) heisst tatsaechlich Clutch,

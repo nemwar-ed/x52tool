@@ -27,7 +27,7 @@ REST_COLUMNS = [
     "Mittenversatz",
     "Rauschen (Spitze-Spitze)",
     "Standardabw.",
-    "Aktuelle Deadzone",
+    "Aktuell (Deadzone / Fuzz)",
     "Vorschlag",
 ]
 RANGE_COLUMNS = [
@@ -41,7 +41,10 @@ RANGE_COLUMNS = [
 
 
 class AnalysisTab(QWidget):
-    suggestionsReady = pyqtSignal(dict)  # {abs_code: vorgeschlagene Deadzone}
+    # {abs_code: {"flat": N}} oder {abs_code: {"fuzz": N}} - je nachdem, ob
+    # die Achse eine verlaessliche Mitte hat (siehe AxisMeasurement.
+    # has_reliable_center). Nie beides fuer dieselbe Achse.
+    suggestionsReady = pyqtSignal(dict)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -62,8 +65,11 @@ class AnalysisTab(QWidget):
 
     def _build(self) -> None:
         self.explain = QLabel(
-            "Ruhemessung: Haende weg, nichts anfassen. Misst Mittenversatz und "
-            "Rauschen und schlaegt daraus eine Deadzone vor.\n"
+            "Ruhemessung: Haende weg, nichts anfassen. Fuer Stick und Twist "
+            "(echte Federrueckstellung) ein Deadzone-Vorschlag um die Mitte. "
+            "Fuer Schubhebel, Schieberegler und Rotary 1/2 (keine "
+            "Federrueckstellung, teils auch keine feste Mitte) stattdessen "
+            "ein Fuzz-Vorschlag - der wirkt unabhaengig von der Position.\n"
             "Bereichsmessung: jede Achse einmal langsam von Anschlag zu Anschlag. "
             "Zeigt, ob die Potis den vollen Bereich noch erreichen."
         )
@@ -229,20 +235,36 @@ class AnalysisTab(QWidget):
         self._prepare_table(REST_COLUMNS, len(results))
         self._suggestions = {}
         for row, m in enumerate(results):
-            suggestion = m.suggested_flat
-            self._suggestions[m.code] = suggestion
-            drift_pct = m.percent(m.centre_offset)
             noise_pct = m.percent(m.spread)
             self.table.setItem(row, 0, self._cell(m.label))
-            self.table.setItem(
-                row, 1, self._cell(f"{m.centre_offset:+.0f}  ({drift_pct:+.2f} %)", abs(drift_pct) > 2.0)
-            )
+
+            if m.has_reliable_center:
+                drift_pct = m.percent(m.centre_offset)
+                self.table.setItem(
+                    row, 1,
+                    self._cell(f"{m.centre_offset:+.0f}  ({drift_pct:+.2f} %)", abs(drift_pct) > 2.0),
+                )
+            else:
+                # Keine Feder, die zur Mitte zurueckfuehrt - der Wert steht
+                # einfach da, wo die Achse zuletzt hingestellt wurde. Eine
+                # "Abweichung" davon anzuzeigen wuerde einen Defekt
+                # suggerieren, den es nicht gibt.
+                self.table.setItem(row, 1, self._cell("–  (keine feste Mitte)"))
+
             self.table.setItem(
                 row, 2, self._cell(f"{m.spread}  ({noise_pct:.2f} %)", noise_pct > 1.0)
             )
             self.table.setItem(row, 3, self._cell(f"{m.stddev:.1f}"))
-            self.table.setItem(row, 4, self._cell(str(m.info.flat)))
-            self.table.setItem(row, 5, self._cell(str(suggestion)))
+            self.table.setItem(row, 4, self._cell(f"{m.info.flat} / {m.info.fuzz}"))
+
+            if m.has_reliable_center:
+                suggestion = m.suggested_flat
+                self._suggestions[m.code] = {"flat": suggestion}
+                self.table.setItem(row, 5, self._cell(f"{suggestion}  (Deadzone)"))
+            else:
+                suggestion = m.suggested_fuzz
+                self._suggestions[m.code] = {"fuzz": suggestion}
+                self.table.setItem(row, 5, self._cell(f"{suggestion}  (Fuzz)"))
         self.btn_apply.setEnabled(bool(self._suggestions))
 
     def _show_range(self, results: list[AxisMeasurement]) -> None:
