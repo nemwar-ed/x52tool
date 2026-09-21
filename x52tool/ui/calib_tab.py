@@ -74,6 +74,17 @@ class CalibrationTab(QWidget):
 
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
+        self.table.horizontalHeaderItem(COLUMNS.index("Fuzz")).setToolTip(
+            "Fuzz: der Kernel ignoriert jede Wertaenderung, die kleiner ist "
+            "als dieser Betrag - unabhaengig davon, wo die Achse gerade "
+            "steht. Ein reiner Rauschfilter, wirkt ueberall."
+        )
+        self.table.horizontalHeaderItem(COLUMNS.index("Deadzone (flat)")).setToolTip(
+            "Deadzone (auch \"flat\" genannt): ein Fenster um die Achsenmitte "
+            "(Minimum+Maximum)/2, in dem Bewegungen ignoriert werden. Nur "
+            "sinnvoll bei Achsen, die von selbst zur Mitte zurueckfedern -"
+            "sonst kann das Fenster an der falschen Stelle liegen."
+        )
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)

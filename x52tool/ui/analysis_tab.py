@@ -71,7 +71,13 @@ class AnalysisTab(QWidget):
             "Federrueckstellung, teils auch keine feste Mitte) stattdessen "
             "ein Fuzz-Vorschlag - der wirkt unabhaengig von der Position.\n"
             "Bereichsmessung: jede Achse einmal langsam von Anschlag zu Anschlag. "
-            "Zeigt, ob die Potis den vollen Bereich noch erreichen."
+            "Zeigt, ob die Potis den vollen Bereich noch erreichen.\n\n"
+            "Deadzone (auch \"flat\" genannt): ein Fenster um die Achsenmitte, "
+            "in dem kleine Bewegungen ignoriert werden. Nur sinnvoll bei "
+            "Achsen, die von selbst zur Mitte zurueckfedern.\n"
+            "Fuzz: der Kernel ignoriert jede Wertaenderung, die kleiner ist "
+            "als dieser Betrag - ein reiner Rauschfilter, unabhaengig davon, "
+            "wo die Achse gerade steht."
         )
         self.explain.setWordWrap(True)
 
@@ -233,6 +239,20 @@ class AnalysisTab(QWidget):
 
     def _show_rest(self, results: list[AxisMeasurement]) -> None:
         self._prepare_table(REST_COLUMNS, len(results))
+        header_deadzone_fuzz = self.table.horizontalHeaderItem(4)
+        if header_deadzone_fuzz is not None:
+            header_deadzone_fuzz.setToolTip(
+                "Deadzone/flat: Fenster um die Mitte, in dem Bewegungen ignoriert "
+                "werden - nur sinnvoll bei Achsen mit Federrueckstellung.\n"
+                "Fuzz: ignoriert jede Wertaenderung unterhalb dieses Betrags, "
+                "egal wo die Achse steht - ein reiner Rauschfilter."
+            )
+        header_suggestion = self.table.horizontalHeaderItem(5)
+        if header_suggestion is not None:
+            header_suggestion.setToolTip(
+                "Bei Achsen mit fester Mitte: Deadzone-Vorschlag.\n"
+                "Bei allen anderen: Fuzz-Vorschlag (siehe Spalte links)."
+            )
         self._suggestions = {}
         for row, m in enumerate(results):
             noise_pct = m.percent(m.spread)
