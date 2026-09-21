@@ -149,13 +149,15 @@ class AxisBar(QWidget):
         painter.end()
 
 
-class HatWidget(QWidget):
-    """8-Wege-Kompass fuer ein Hat-Achsenpaar (z.B. ABS_HAT0X/Y).
+class _CompassWidget(QWidget):
+    """Gemeinsame Zeichnung fuer einen 8-Wege-Kompass.
 
     Ein Hat ist digital: X und Y liegen praktisch immer bei -1, 0 oder +1.
     Als zwei Balken dargestellt sieht man nur zwei zuckende Striche und muss
     im Kopf zusammensetzen, welche der 8 Richtungen das ergibt. Hier wird
-    stattdessen direkt die aktuelle Richtung markiert.
+    stattdessen direkt die aktuelle Richtung markiert. Diese Basisklasse
+    kennt nur x_value/y_value; woher die kommen (eine Achse oder vier
+    Einzeltasten), entscheiden die Unterklassen.
     """
 
     # Reihenfolge im Uhrzeigersinn ab oben, fuer die Marker-Positionen.
@@ -164,17 +166,14 @@ class HatWidget(QWidget):
         (0, 1), (-1, 1), (-1, 0), (-1, -1),
     ]
 
-    def __init__(self, label: str, x_code: int, y_code: int, parent: QWidget | None = None) -> None:
+    def __init__(self, label: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.label = label
-        self.x_code = x_code
-        self.y_code = y_code
         self.x_value = 0
         self.y_value = 0
         self.setMinimumSize(96, 96)
-        self.setToolTip(f"evdev ABS 0x{x_code:02x} / 0x{y_code:02x}")
 
-    def set_values(self, x: int, y: int) -> None:
+    def _set_direction(self, x: int, y: int) -> None:
         x = 0 if x == 0 else (1 if x > 0 else -1)
         y = 0 if y == 0 else (1 if y > 0 else -1)
         if (x, y) != (self.x_value, self.y_value):
@@ -233,13 +232,49 @@ class HatWidget(QWidget):
         painter.end()
 
 
+class HatWidget(_CompassWidget):
+    """Kompass fuer ein echtes Hat-Achsenpaar (z.B. ABS_HAT0X/Y)."""
+
+    def __init__(self, label: str, x_code: int, y_code: int, parent: QWidget | None = None) -> None:
+        super().__init__(label, parent)
+        self.x_code = x_code
+        self.y_code = y_code
+        self.setToolTip(f"evdev ABS 0x{x_code:02x} / 0x{y_code:02x}")
+
+    def set_values(self, x: int, y: int) -> None:
+        self._set_direction(x, y)
+
+
+class ButtonHatWidget(_CompassWidget):
+    """Kompass fuer einen Hat, der als vier Einzeltasten kommt (POV2/POV3
+    beim X52 Pro). Die vier zugehoerigen Tasten leuchten in der ButtonGrid
+    unabhaengig davon weiter mit - dieser Kompass ist eine zusaetzliche,
+    leichter lesbare Ansicht derselben Events, keine Ersetzung.
+    """
+
+    def __init__(
+        self, label: str, up: int, right: int, down: int, left: int, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(label, parent)
+        self.up, self.right, self.down, self.left = up, right, down, left
+        self.setToolTip(
+            f"evdev-Codes 0x{up:x} (hoch) / 0x{right:x} (rechts) / "
+            f"0x{down:x} (runter) / 0x{left:x} (links)"
+        )
+
+    def set_pressed(self, pressed: dict[int, bool]) -> None:
+        x = (1 if pressed.get(self.right) else 0) - (1 if pressed.get(self.left) else 0)
+        y = (1 if pressed.get(self.down) else 0) - (1 if pressed.get(self.up) else 0)
+        self._set_direction(x, y)
+
+
 
 class ButtonGrid(QWidget):
     """Raster aller Tasten. Gedrueckte Tasten leuchten auf.
 
-    Zeigt Nummer und Kernel-Name zusammen (z.B. "12  BTN_TOP"), weil es
-    keine verlaessliche Saitek-Nummerierung zum Nachschlagen gibt - der
-    Kernel-Name ist das, was auch in evtest oder einer .binds-Datei steht.
+    Zeigt Nummer (klein) und physische Bezeichnung (gross) untereinander.
+    Ist keine Taste in X52_PRO_BUTTON_LABELS bekannt (nicht-Pro-Geraet,
+    unbekanntes Modell), steht dort stattdessen der Kernel-Name.
     """
 
     COLUMNS = 4
@@ -274,10 +309,16 @@ class ButtonGrid(QWidget):
         grid.setSpacing(3)
         grid.setContentsMargins(0, 0, 0, 0)
         for i, button in enumerate(buttons):
-            cell = QLabel(button.label)
-            cell.setFont(small)
+            cell = QLabel()
+            cell.setTextFormat(Qt.TextFormat.RichText)
+            cell.setText(
+                f"<div style='font-size:{small.pointSizeF():.1f}pt;opacity:0.6;'>"
+                f"{button.index + 1}</div>"
+                f"<div style='font-size:{small.pointSizeF() + 2.0:.1f}pt;font-weight:600;'>"
+                f"{button.label}</div>"
+            )
             cell.setWordWrap(True)
-            cell.setMinimumHeight(36)
+            cell.setMinimumHeight(42)
             cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
             cell.setStyleSheet(self.style_idle)
             cell.setToolTip(

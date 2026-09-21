@@ -106,15 +106,28 @@ def test_x52_pro_button_mapping_maus_und_mfd_stellen_korrigiert():
     assert X52_PRO_BUTTON_LABELS[codes[38]] == "Rad rechts gedrueckt"  # Nr. 39
 
 
+def test_x52_pro_button_mapping_unbenannte_luecken_codes_beruecksichtigt():
+    """Regression: zwischen BTN_BASE6 und BTN_DEAD liegen drei vom Kernel
+    unbenannte Codes (0x12c-0x12e), die der X52 Pro tatsaechlich benutzt.
+    Werden sie beim Aufbau der Tabelle uebersehen, verschiebt sich alles ab
+    Taste 13 um drei Stellen, ohne dass die Gesamtzahl (39) es verraet."""
+    from evdev import ecodes
+    codes = sorted(X52_PRO_BUTTON_LABELS.keys())
+    assert codes[12:15] == [ecodes.BTN_BASE6 + 1, ecodes.BTN_BASE6 + 2, ecodes.BTN_BASE6 + 3]
+    assert [X52_PRO_BUTTON_LABELS[c] for c in codes[12:16]] == [
+        "T5", "T6", "Second Trigger", "Mouse Button 1 (links)",
+    ]
+
+
 def test_button_label_nutzt_physischen_namen_nur_wenn_pro():
     """Ohne is_pro=True (unbekanntes/nicht-Pro-Geraet) nie die Pro-Tabelle
     anwenden - der normale X52 (ohne Pro) hat eine andere Tastenbelegung."""
     from evdev import ecodes
     name = evdev_button_name(ecodes.BTN_TRIGGER)
-    mit_pro = button_label(0, name, ecodes.BTN_TRIGGER, is_pro=True)
-    ohne_pro = button_label(0, name, ecodes.BTN_TRIGGER, is_pro=False)
-    assert mit_pro == "1  Trigger"
-    assert ohne_pro == f"1  {name}"
+    mit_pro = button_label(name, ecodes.BTN_TRIGGER, is_pro=True)
+    ohne_pro = button_label(name, ecodes.BTN_TRIGGER, is_pro=False)
+    assert mit_pro == "Trigger"
+    assert ohne_pro == name
 
 
 def test_axis_label_rotary_achsen():
@@ -124,6 +137,21 @@ def test_axis_label_rotary_achsen():
     from x52tool.device import axis_label
     assert axis_label(ecodes.ABS_RX) == "Rotary 1"
     assert axis_label(ecodes.ABS_RY) == "Rotary 2"
+
+
+def test_pov_button_gruppen_zeigen_auf_bekannte_tasten():
+    """POV2/POV3 sind beim X52 Pro Tasten, keine Achsen - jede der acht
+    Tasten in X52_PRO_POV_BUTTON_GROUPS muss auch in der Haupttabelle mit
+    dem erwarteten POV-Namen stehen, sonst zeigt der Kompass ins Leere."""
+    from x52tool.device import X52_PRO_POV_BUTTON_GROUPS
+
+    assert set(X52_PRO_POV_BUTTON_GROUPS) == {"Hat 2", "Hat 3"}
+    for hat_name, (up, right, down, left) in X52_PRO_POV_BUTTON_GROUPS.items():
+        prefix = "POV2" if hat_name == "Hat 2" else "POV3"
+        assert X52_PRO_BUTTON_LABELS[up] == f"{prefix} hoch"
+        assert X52_PRO_BUTTON_LABELS[right] == f"{prefix} rechts"
+        assert X52_PRO_BUTTON_LABELS[down] == f"{prefix} runter"
+        assert X52_PRO_BUTTON_LABELS[left] == f"{prefix} links"
 
 
 

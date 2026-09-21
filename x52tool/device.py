@@ -198,10 +198,7 @@ def evdev_button_name(code: int) -> str:
 #
 # Von Oliver an seinem eigenen X52 Pro Taste fuer Taste im Live-Test
 # durchgezaehlt und bestaetigt (nicht mehr nur aus Community-Quellen
-# rekonstruiert). Zwei Stellen wichen von der ersten, aus Foren
-# zusammengetragenen Fassung ab: Position 16-19 sind Maustasten/Mausrad
-# (nicht ein Daumenrad am Ministick), und Position 39 ist "Rad rechts
-# gedrueckt" statt einer eigenen MFD-Auswahltaste.
+# rekonstruiert).
 #
 # 28/29/30 (Mode Red/Purple/Blue) sind ein 3-Stufen-Drehschalter, kein
 # Momentkontakt: genau einer der drei Codes ist immer aktiv, das ist kein
@@ -213,10 +210,17 @@ def evdev_button_name(code: int) -> str:
 # nutzbar.
 #
 # Die Zuordnung haengt an den evdev-Codes (deterministisch), nicht an der
-# Listenposition: die ersten 12 Tasten fallen auf die eigens fuer Joysticks
-# vorgesehenen Kernel-Konstanten BTN_TRIGGER..BTN_BASE6. Fuer die
-# restlichen 27 Tasten kennt der Kernel keine joystick-spezifischen Namen
-# mehr, sie laufen ueber BTN_DEAD und die generischen BTN_TRIGGER_HAPPYn.
+# Listenposition. Die ersten 12 Tasten fallen auf die eigens fuer Joysticks
+# vorgesehenen Kernel-Konstanten BTN_TRIGGER..BTN_BASE6. WICHTIG: zwischen
+# BTN_BASE6 (0x12b) und BTN_DEAD (0x12f) liegen drei Codes, denen der Kernel
+# keinen Namen gibt (0x12c-0x12e, evtest/evdev zeigt sie als "CODE 300" bis
+# "CODE 302") - die hat der X52 Pro tatsaechlich belegt. Wer die beim
+# Zusammenbauen der Tabelle uebersieht (wie hier zunaechst geschehen),
+# bekommt ab Taste 13 eine um drei Stellen verschobene Zuordnung, ohne dass
+# es auffaellt, weil die Tabelle trotzdem genau 39 Eintraege hat. Danach
+# folgen BTN_DEAD und 23 der generischen BTN_TRIGGER_HAPPYn (1-23).
+_GAP1, _GAP2, _GAP3 = ecodes.BTN_BASE6 + 1, ecodes.BTN_BASE6 + 2, ecodes.BTN_BASE6 + 3  # 0x12c, 0x12d, 0x12e
+
 X52_PRO_BUTTON_LABELS: dict[int, str] = {
     ecodes.BTN_TRIGGER: "Trigger",
     ecodes.BTN_THUMB: "Fire",
@@ -230,49 +234,61 @@ X52_PRO_BUTTON_LABELS: dict[int, str] = {
     ecodes.BTN_BASE4: "T2",
     ecodes.BTN_BASE5: "T3",
     ecodes.BTN_BASE6: "T4",
-    ecodes.BTN_DEAD: "T5",
-    ecodes.BTN_TRIGGER_HAPPY1: "T6",
-    ecodes.BTN_TRIGGER_HAPPY2: "Second Trigger",
-    ecodes.BTN_TRIGGER_HAPPY3: "Mouse Button 1 (links)",
-    ecodes.BTN_TRIGGER_HAPPY4: "Mouse Wheel hoch",
-    ecodes.BTN_TRIGGER_HAPPY5: "Mouse Wheel runter",
-    ecodes.BTN_TRIGGER_HAPPY6: "Mouse Button 2 (rechts)",
-    ecodes.BTN_TRIGGER_HAPPY7: "POV2 hoch",
-    ecodes.BTN_TRIGGER_HAPPY8: "POV2 rechts",
-    ecodes.BTN_TRIGGER_HAPPY9: "POV2 runter",
-    ecodes.BTN_TRIGGER_HAPPY10: "POV2 links",
-    ecodes.BTN_TRIGGER_HAPPY11: "POV3 hoch",
-    ecodes.BTN_TRIGGER_HAPPY12: "POV3 rechts",
-    ecodes.BTN_TRIGGER_HAPPY13: "POV3 runter",
-    ecodes.BTN_TRIGGER_HAPPY14: "POV3 links",
-    ecodes.BTN_TRIGGER_HAPPY15: "Mode Red (MFD Mode 1)",
-    ecodes.BTN_TRIGGER_HAPPY16: "Mode Purple (MFD Mode 2)",
-    ecodes.BTN_TRIGGER_HAPPY17: "Mode Blue (MFD Mode 3)",
-    ecodes.BTN_TRIGGER_HAPPY18: "i",
-    ecodes.BTN_TRIGGER_HAPPY19: "Rad links gedrueckt",
-    ecodes.BTN_TRIGGER_HAPPY20: "Start/Stop",
-    ecodes.BTN_TRIGGER_HAPPY21: "Reset",
-    ecodes.BTN_TRIGGER_HAPPY22: "Rad links hoch (PG Up)",
-    ecodes.BTN_TRIGGER_HAPPY23: "Rad links runter (PG Down)",
-    ecodes.BTN_TRIGGER_HAPPY24: "Rad rechts hoch",
-    ecodes.BTN_TRIGGER_HAPPY25: "Rad rechts runter",
-    ecodes.BTN_TRIGGER_HAPPY26: "Rad rechts gedrueckt",
+    _GAP1: "T5",
+    _GAP2: "T6",
+    _GAP3: "Second Trigger",
+    ecodes.BTN_DEAD: "Mouse Button 1 (links)",
+    ecodes.BTN_TRIGGER_HAPPY1: "Mouse Wheel hoch",
+    ecodes.BTN_TRIGGER_HAPPY2: "Mouse Wheel runter",
+    ecodes.BTN_TRIGGER_HAPPY3: "Mouse Button 2 (rechts)",
+    ecodes.BTN_TRIGGER_HAPPY4: "POV2 hoch",
+    ecodes.BTN_TRIGGER_HAPPY5: "POV2 rechts",
+    ecodes.BTN_TRIGGER_HAPPY6: "POV2 runter",
+    ecodes.BTN_TRIGGER_HAPPY7: "POV2 links",
+    ecodes.BTN_TRIGGER_HAPPY8: "POV3 hoch",
+    ecodes.BTN_TRIGGER_HAPPY9: "POV3 rechts",
+    ecodes.BTN_TRIGGER_HAPPY10: "POV3 runter",
+    ecodes.BTN_TRIGGER_HAPPY11: "POV3 links",
+    ecodes.BTN_TRIGGER_HAPPY12: "Mode Red (MFD Mode 1)",
+    ecodes.BTN_TRIGGER_HAPPY13: "Mode Purple (MFD Mode 2)",
+    ecodes.BTN_TRIGGER_HAPPY14: "Mode Blue (MFD Mode 3)",
+    ecodes.BTN_TRIGGER_HAPPY15: "i",
+    ecodes.BTN_TRIGGER_HAPPY16: "Rad links gedrueckt",
+    ecodes.BTN_TRIGGER_HAPPY17: "Start/Stop",
+    ecodes.BTN_TRIGGER_HAPPY18: "Reset",
+    ecodes.BTN_TRIGGER_HAPPY19: "Rad links hoch (PG Up)",
+    ecodes.BTN_TRIGGER_HAPPY20: "Rad links runter (PG Down)",
+    ecodes.BTN_TRIGGER_HAPPY21: "Rad rechts hoch",
+    ecodes.BTN_TRIGGER_HAPPY22: "Rad rechts runter",
+    ecodes.BTN_TRIGGER_HAPPY23: "Rad rechts gedrueckt",
+}
+
+# POV2/POV3 sind auf dem X52 Pro keine Achsen, sondern vier Einzeltasten
+# je Hat - fuer die Kompass-Darstellung im Live-Test brauchen sie eine
+# eigene Gruppierung (hoch, rechts, runter, links), analog zu den echten
+# Hat-Achsen in HAT_AXIS_PAIRS.
+X52_PRO_POV_BUTTON_GROUPS: dict[str, tuple[int, int, int, int]] = {
+    "Hat 2": (
+        ecodes.BTN_TRIGGER_HAPPY4, ecodes.BTN_TRIGGER_HAPPY5,
+        ecodes.BTN_TRIGGER_HAPPY6, ecodes.BTN_TRIGGER_HAPPY7,
+    ),
+    "Hat 3": (
+        ecodes.BTN_TRIGGER_HAPPY8, ecodes.BTN_TRIGGER_HAPPY9,
+        ecodes.BTN_TRIGGER_HAPPY10, ecodes.BTN_TRIGGER_HAPPY11,
+    ),
 }
 
 
-def button_label(index: int, evdev_name: str, code: int = -1, is_pro: bool = False) -> str:
-    """Anzeigetext fuer eine Taste.
+def button_label(evdev_name: str, code: int = -1, is_pro: bool = False) -> str:
+    """Anzeigename einer Taste, ohne Nummer.
 
     Ist das Geraet als X52 Pro erkannt und der Code in der rekonstruierten
-    Tabelle bekannt, steht die physische Bezeichnung vorne (z.B. "Fire"),
-    der Kernel-Name dahinter in Klammern - so bleibt die Gegenprobe im
-    Live-Test jederzeit moeglich, ohne der Tabelle blind vertrauen zu
-    muessen. Sonst wie bisher: Nummer und Kernel-Name.
+    Tabelle bekannt, kommt die physische Bezeichnung (z.B. "Fire") zum
+    Einsatz, sonst der Kernel-Name. Die Nummer (Reihenfolge, in der der
+    Kernel die Codes meldet) rendert die Oberflaeche separat.
     """
     physical = X52_PRO_BUTTON_LABELS.get(code) if is_pro else None
-    if physical:
-        return f"{index + 1}  {physical}"
-    return f"{index + 1}  {evdev_name}"
+    return physical or evdev_name
 
 
 @dataclass
@@ -380,7 +396,7 @@ class X52Device:
             self.buttons.append(
                 Button(
                     code=code,
-                    label=button_label(index, name, code, self.is_pro),
+                    label=button_label(name, code, self.is_pro),
                     index=index,
                     evdev_name=name,
                 )
