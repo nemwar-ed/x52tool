@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QGridLayout, QLabel, QSizePolicy, QWidget
 
 from evdev import ecodes
 
-from ..device import AbsInfo, Axis, Button
+from ..device import ABS_MISC_Y, AbsInfo, Axis, Button, display_value
 
 # Achsen, die um eine Mittelstellung herum arbeiten. Der Rest wird von
 # links nach rechts gefuellt, wie ein Schubhebel.
@@ -24,6 +24,12 @@ BIPOLAR_AXES = {
     ecodes.ABS_RZ,
     ecodes.ABS_HAT0X,
     ecodes.ABS_HAT0Y,
+    # Ministick: 0..15, aber Oliver hat bestaetigt, dass die Ruhelage in der
+    # Mitte liegt (Rohwert 8), nicht am Anfang - technisch also bipolar,
+    # auch wenn er als digitale Achse (siehe DIGITAL_AXES) keine Deadzone
+    # braucht.
+    ecodes.ABS_MISC,
+    ABS_MISC_Y,
 }
 
 # Einzige feste Farbe: die Deadzone soll in beiden Themes als Warnband lesbar
@@ -65,7 +71,8 @@ class AxisBar(QWidget):
         info = self.axis.info
         if info.span == 0:
             return 0.5
-        return min(1.0, max(0.0, (value - info.minimum) / info.span))
+        shown = display_value(self.axis.code, info, int(value))
+        return min(1.0, max(0.0, (shown - info.minimum) / info.span))
 
     # -- Zeichnen ----------------------------------------------------------
 
@@ -101,15 +108,16 @@ class AxisBar(QWidget):
         def clamp(pct: float) -> float:
             return max(-100.0, min(100.0, pct))
 
+        shown_value = display_value(self.axis.code, info, self.value)
         if self.bipolar:
-            pct_text = f"{clamp(info.as_percent(self.value - info.centre) * 2):+.1f} %"
+            pct_text = f"{clamp(info.as_percent(shown_value - info.centre) * 2):+.1f} %"
         else:
-            pct_text = f"{clamp(info.as_percent(self.value - info.minimum)):.1f} %"
+            pct_text = f"{clamp(info.as_percent(shown_value - info.minimum)):.1f} %"
         painter.setPen(QPen(muted))
         painter.drawText(
             QRect(self.width() // 2, 0, self.width() // 2, text_h),
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            f"{self.value}   {pct_text}   [{info.minimum} .. {info.maximum}]",
+            f"{shown_value}   {pct_text}   [{info.minimum} .. {info.maximum}]",
         )
 
         # Schiene

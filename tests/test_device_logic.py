@@ -253,6 +253,34 @@ def test_guided_axis_queue_mit_einzelner_achse():
 
 
 
+def test_display_value_spiegelt_x52_schubhebel():
+    """Oliver hat bestaetigt: Hebel unten -> Rohwert 255, Hebel oben ->
+    Rohwert 0. Fuer die Anzeige soll das gespiegelt werden (0 unten,
+    255 oben), ohne den rohen Kalibrierwert zu veraendern."""
+    from evdev import ecodes
+
+    from x52tool.device import AbsInfo, display_value
+
+    info = AbsInfo(value=0, minimum=0, maximum=255, fuzz=0, flat=0, resolution=0)
+    assert display_value(ecodes.ABS_Z, info, raw=255) == 0
+    assert display_value(ecodes.ABS_Z, info, raw=0) == 255
+    # Unbetroffene Achse bleibt unveraendert.
+    assert display_value(ecodes.ABS_X, info, raw=200) == 200
+
+
+def test_ministick_gilt_als_bipolar():
+    """Der Ministick liegt in Ruhe in der Mitte (Rohwert 8 von 0..15),
+    nicht am Anfang - deshalb gehoert er zu BIPOLAR_AXES in der UI."""
+    from evdev import ecodes
+
+    from x52tool.device import ABS_MISC_Y
+    from x52tool.ui.widgets import BIPOLAR_AXES
+
+    assert ecodes.ABS_MISC in BIPOLAR_AXES
+    assert ABS_MISC_Y in BIPOLAR_AXES
+
+
+
 if __name__ == "__main__":
     # Laeuft auch ohne pytest - fuer eine schnelle Kontrolle per
     # 'python3 tests/test_device_logic.py'.

@@ -185,6 +185,27 @@ NO_RELIABLE_CENTER_AXES = {
     ecodes.ABS_RY,
 }
 
+# Achsen, deren Rohwerte dem Kernel gegenueber "andersrum" laufen, als ein
+# Mensch es erwartet. Beim X52-Schubhebel (ABS_Z) meldet der Kernel bei
+# Leerlauf (Hebel ganz unten) den hoechsten Rohwert und bei Vollgas (Hebel
+# ganz oben) den niedrigsten - von Oliver an echter Hardware bestaetigt
+# (Hebel unten -> 255, Hebel oben -> 0).
+#
+# Das ist NUR ein Anzeige-Anliegen fuer den Live-Test-Balken. Kalibrierung,
+# Analyse und alles, was tatsaechlich in den Kernel geschrieben wird,
+# bleiben unangetastet - ein Spiel regelt eine "echte" Invertierung ueber
+# seine eigene Achsen-Einstellung, das soll dieses Tool nicht heimlich
+# vorwegnehmen.
+DISPLAY_INVERTED_AXES = {ecodes.ABS_Z}
+
+
+def display_value(code: int, info: AbsInfo, raw: int) -> int:
+    """Anzeigewert fuer den Live-Test-Balken - gespiegelt fuer Achsen aus
+    DISPLAY_INVERTED_AXES, sonst identisch mit dem Rohwert."""
+    if code not in DISPLAY_INVERTED_AXES:
+        return raw
+    return info.maximum - (raw - info.minimum)
+
 # Hat-Achsenpaare (X-Code -> Y-Code), fuer die Kompass-Darstellung im
 # Live-Test statt zweier Balken. Bislang nur Hat 1 - Oliver hat bestaetigt,
 # dass POV-Hat 2 und 3 beim X52 Pro als Tasten kommen, nicht als Achsen.
