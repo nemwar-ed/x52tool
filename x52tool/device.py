@@ -196,16 +196,17 @@ NO_RELIABLE_CENTER_AXES = {
 # Konvention (Stick nach vorne = negativer Wert, Nase runter). Fuer die
 # Anzeige soll das andersherum laufen, wie es Oliver beschrieben hat.
 #
-# ABS_MISC (Ministick X): der Mauszeiger bewegt sich nach oben, aber die
-# Anzeige im 2D-Feld zeigte nach unten - von Oliver an echter Hardware
-# bestaetigt, hier fuer die X-Achse des Ministicks.
+# ABS_MISC / ABS_MISC_Y (Ministick X/Y): beide Achsen zeigten andersherum,
+# als es Mauszeiger-Verhalten und Stick-Konvention erwarten liessen - von
+# Oliver an echter Hardware bestaetigt (erst nur X vermutet, dann auch Y
+# bestaetigt noetig).
 #
 # Das ist NUR ein Anzeige-Anliegen fuer den Live-Test-Balken/das 2D-Feld.
 # Kalibrierung, Analyse und alles, was tatsaechlich in den Kernel
 # geschrieben wird, bleiben unangetastet - ein Spiel regelt eine "echte"
 # Invertierung ueber seine eigene Achsen-Einstellung, das soll dieses Tool
 # nicht heimlich vorwegnehmen.
-DISPLAY_INVERTED_AXES = {ecodes.ABS_Z, ecodes.ABS_Y, ecodes.ABS_MISC}
+DISPLAY_INVERTED_AXES = {ecodes.ABS_Z, ecodes.ABS_Y, ecodes.ABS_MISC, ABS_MISC_Y}
 
 
 def display_value(code: int, info: AbsInfo, raw: int) -> int:
