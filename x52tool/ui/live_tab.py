@@ -90,8 +90,9 @@ class LiveTab(QWidget):
         top_row.addWidget(self._build_stick_and_throttle_box(by_code, used_codes))
         ministick_box = self._build_ministick_box(by_code, used_codes)
         if ministick_box is not None:
-            ministick_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            top_row.addWidget(ministick_box, 1, Qt.AlignmentFlag.AlignTop)
+            ministick_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            top_row.addWidget(ministick_box, 0, Qt.AlignmentFlag.AlignTop)
+        top_row.addStretch(1)
         self.body_layout.addLayout(top_row)
 
         # Hat-Achsencodes schon hier reservieren (nicht erst in
