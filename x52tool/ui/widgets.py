@@ -425,9 +425,14 @@ class ButtonTile(QLabel):
     """
 
     def __init__(
-        self, label: str, codes: list[int], evdev_name: str = "", parent: QWidget | None = None
+        self,
+        label: str,
+        codes: list[int],
+        evdev_name: str = "",
+        parent: QWidget | None = None,
+        number: int | None = None,
     ) -> None:
-        super().__init__(label, parent)
+        super().__init__(parent)
         self.codes = codes
         self._pressed = False
         pal = self.palette()
@@ -449,6 +454,14 @@ class ButtonTile(QLabel):
         small = QFont(self.font())
         small.setPointSizeF(max(7.0, small.pointSizeF() - 1.5))
         self.setFont(small)
+        if number is not None:
+            self.setTextFormat(Qt.TextFormat.RichText)
+            self.setText(
+                f"<div style='font-size:{small.pointSizeF() - 1.5:.1f}pt;opacity:0.6;'>"
+                f"{number}</div><div>{label}</div>"
+            )
+        else:
+            self.setText(label)
         self.setWordWrap(True)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(self._style_idle)

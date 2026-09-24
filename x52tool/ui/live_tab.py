@@ -210,7 +210,8 @@ class LiveTab(QWidget):
         if not any(c in by_btn_code for c in codes):
             return None
         evdev_name = by_btn_code[codes[0]].evdev_name if codes[0] in by_btn_code else ""
-        tile = ButtonTile(label, codes, evdev_name)
+        number = by_btn_code[codes[0]].index + 1 if codes[0] in by_btn_code else None
+        tile = ButtonTile(label, codes, evdev_name, number=number)
         tile.setMinimumSize(88, 40)
         self.button_tiles.append(tile)
         return tile
