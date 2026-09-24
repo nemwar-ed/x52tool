@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -87,12 +86,10 @@ class LiveTab(QWidget):
         used_codes: set[int] = set()
 
         top_row = QHBoxLayout()
-        top_row.addWidget(self._build_stick_and_throttle_box(by_code, used_codes))
+        top_row.addWidget(self._build_stick_and_throttle_box(by_code, used_codes), 3)
         ministick_box = self._build_ministick_box(by_code, used_codes)
         if ministick_box is not None:
-            ministick_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            top_row.addWidget(ministick_box, 0, Qt.AlignmentFlag.AlignTop)
-        top_row.addStretch(1)
+            top_row.addWidget(ministick_box, 1)
         self.body_layout.addLayout(top_row)
 
         # Hat-Achsencodes schon hier reservieren (nicht erst in
@@ -190,7 +187,11 @@ class LiveTab(QWidget):
         pos = Position2DWidget("Maus-Stick", x_axis, y_axis)
         self.position_widgets.append((x_axis.code, y_axis.code, pos))
         used_codes.update((x_axis.code, y_axis.code))
+        # In beide Richtungen zentrieren, egal wie gross die Box durch das
+        # Streckungsverhaeltnis in der oberen Reihe am Ende wird.
+        layout.addStretch(1)
         layout.addWidget(pos, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(1)
         return box
 
     def _build_hats_row(
