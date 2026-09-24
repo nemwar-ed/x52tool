@@ -145,9 +145,9 @@ def test_pov_button_gruppen_zeigen_auf_bekannte_tasten():
     dem erwarteten POV-Namen stehen, sonst zeigt der Kompass ins Leere."""
     from x52tool.device import X52_PRO_POV_BUTTON_GROUPS
 
-    assert set(X52_PRO_POV_BUTTON_GROUPS) == {"Hat 2", "Hat 3"}
+    assert set(X52_PRO_POV_BUTTON_GROUPS) == {"POV 2", "Throttle Hat"}
     for hat_name, (up, right, down, left) in X52_PRO_POV_BUTTON_GROUPS.items():
-        prefix = "POV2" if hat_name == "Hat 2" else "POV3"
+        prefix = "POV2" if hat_name == "POV 2" else "POV3"
         assert X52_PRO_BUTTON_LABELS[up] == f"{prefix} hoch"
         assert X52_PRO_BUTTON_LABELS[right] == f"{prefix} rechts"
         assert X52_PRO_BUTTON_LABELS[down] == f"{prefix} runter"

@@ -32,24 +32,29 @@ BIPOLAR_AXES = {
     ABS_MISC_Y,
 }
 
-# Einzige feste Farbe: die Deadzone soll in beiden Themes als Warnband lesbar
-# sein und darf sich nicht mit der Auswahlfarbe des Systems beissen.
-DEADZONE_COLOUR = QColor(196, 121, 48)
-
-
 class AxisBar(QWidget):
-    """Balken mit Mittenmarke, Deadzone-Band und Rohwert.
+    """Balken mit Rohwert - waagerecht oder senkrecht.
 
-    Die Deadzone wird mitgezeichnet, weil sonst niemand sieht, was das
-    Setzen von `flat` eigentlich bewirkt.
+    Zeigt bei Achsen mit einer Mitte (bipolar) die vorzeichenbehaftete
+    Abweichung von der Mitte (z.B. "+3"), bei Achsen ohne Mitte den
+    nackten Rohwert (z.B. "200") - keine Prozente, kein Bereich. Die
+    Deadzone/Fuzz-Bearbeitung passiert im Kalibrierungs-Reiter; hier geht
+    es nur um den Live-Wert.
     """
 
-    def __init__(self, axis: Axis, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, axis: Axis, parent: QWidget | None = None, orientation: str = "horizontal"
+    ) -> None:
         super().__init__(parent)
         self.axis = axis
         self.value = axis.info.value
-        self.setMinimumHeight(38)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.orientation = orientation
+        if orientation == "vertical":
+            self.setMinimumSize(72, 140)
+            self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        else:
+            self.setMinimumSize(260, 38)
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setToolTip(f"evdev ABS 0x{axis.code:02x}")
 
     # -- Zustand -----------------------------------------------------------
@@ -74,10 +79,22 @@ class AxisBar(QWidget):
         shown = display_value(self.axis.code, info, int(value))
         return min(1.0, max(0.0, (shown - info.minimum) / info.span))
 
+    def _value_text(self) -> str:
+        info = self.axis.info
+        shown_value = display_value(self.axis.code, info, self.value)
+        if self.bipolar:
+            return f"{shown_value - info.centre:+d}"
+        return str(shown_value)
+
     # -- Zeichnen ----------------------------------------------------------
 
     def paintEvent(self, _event) -> None:  # noqa: N802 - Qt-Namenskonvention
-        info = self.axis.info
+        if self.orientation == "vertical":
+            self._paint_vertical()
+        else:
+            self._paint_horizontal()
+
+    def _colours(self):
         pal = self.palette()
         text_colour = pal.color(QPalette.ColorRole.WindowText)
         muted = QColor(text_colour)
@@ -85,9 +102,10 @@ class AxisBar(QWidget):
         track = pal.color(QPalette.ColorRole.Base)
         edge = pal.color(QPalette.ColorRole.Mid)
         fill = pal.color(QPalette.ColorRole.Highlight)
-        fill_idle = QColor(fill)
-        fill_idle.setAlpha(110)
+        return text_colour, muted, track, edge, fill
 
+    def _paint_horizontal(self) -> None:
+        text_colour, muted, track, edge, fill = self._colours()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -98,62 +116,176 @@ class AxisBar(QWidget):
         text_h = 16
         bar_rect = QRect(0, text_h + 1, self.width(), 15)
 
-        # Beschriftung links, Messwerte rechts
+        metrics = painter.fontMetrics()
+        label_w = min(self.width() - 40, metrics.horizontalAdvance(self.axis.label) + 6)
         painter.setPen(QPen(text_colour))
         painter.drawText(
-            QRect(0, 0, self.width() // 2, text_h),
+            QRect(0, 0, label_w, text_h),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             self.axis.label,
         )
-        def clamp(pct: float) -> float:
-            return max(-100.0, min(100.0, pct))
-
-        shown_value = display_value(self.axis.code, info, self.value)
-        if self.bipolar:
-            pct_text = f"{clamp(info.as_percent(shown_value - info.centre) * 2):+.1f} %"
-        else:
-            pct_text = f"{clamp(info.as_percent(shown_value - info.minimum)):.1f} %"
         painter.setPen(QPen(muted))
         painter.drawText(
-            QRect(self.width() // 2, 0, self.width() // 2, text_h),
+            QRect(label_w, 0, self.width() - label_w, text_h),
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            f"{shown_value}   {pct_text}   [{info.minimum} .. {info.maximum}]",
+            self._value_text(),
         )
 
-        # Schiene
         painter.setPen(QPen(edge, 1))
         painter.setBrush(track)
         painter.drawRoundedRect(bar_rect, 3, 3)
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
-
-        # Deadzone-Band um die Mitte
-        if info.flat > 0 and info.span > 0:
-            half = inner.width() * (info.flat / info.span)
-            centre_x = inner.left() + inner.width() * self._fraction(info.centre)
-            zone = QRect(int(centre_x - half), inner.top(), max(1, int(half * 2)), inner.height())
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(DEADZONE_COLOUR)
-            painter.drawRect(zone.intersected(inner))
-
-        # Fuellung
-        in_deadzone = info.flat > 0 and abs(self.value - info.centre) <= info.flat
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(fill_idle if in_deadzone else fill)
-        start = self._fraction(info.centre) if self.bipolar else 0.0
+        painter.setBrush(fill)
+        start = self._fraction(self.axis.info.centre) if self.bipolar else 0.0
         end = self._fraction(self.value)
         left = inner.left() + inner.width() * min(start, end)
         width = inner.width() * abs(end - start)
         painter.drawRect(
             QRect(int(left), inner.top() + 1, max(2, int(width)), inner.height() - 2)
         )
+        painter.end()
 
-        # Mittenmarke
-        if self.bipolar:
-            centre_x = int(inner.left() + inner.width() * self._fraction(info.centre))
-            painter.setPen(QPen(muted, 1))
-            painter.drawLine(centre_x, bar_rect.top(), centre_x, bar_rect.bottom())
+    def _paint_vertical(self) -> None:
+        text_colour, muted, track, edge, fill = self._colours()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        small = QFont(self.font())
+        small.setPointSizeF(max(8.0, small.pointSizeF() - 0.5))
+        painter.setFont(small)
+
+        label_h = 16
+        value_h = 16
+        painter.setPen(QPen(text_colour))
+        painter.drawText(
+            QRect(0, 0, self.width(), label_h),
+            Qt.AlignmentFlag.AlignCenter,
+            self.axis.label,
+        )
+        painter.setPen(QPen(muted))
+        painter.drawText(
+            QRect(0, self.height() - value_h, self.width(), value_h),
+            Qt.AlignmentFlag.AlignCenter,
+            self._value_text(),
+        )
+
+        margin = 6
+        bar_rect = QRect(
+            margin, label_h + 2, self.width() - 2 * margin, self.height() - label_h - value_h - 4
+        )
+        painter.setPen(QPen(edge, 1))
+        painter.setBrush(track)
+        painter.drawRoundedRect(bar_rect, 3, 3)
+
+        inner = bar_rect.adjusted(1, 1, -1, -1)
+        start = self._fraction(self.axis.info.centre) if self.bipolar else 0.0
+        end = self._fraction(self.value)
+        # Fraktion 0 = unten, 1 = oben (Hebel-Metapher: nach oben = mehr).
+        top_frac = 1.0 - max(start, end)
+        bottom_frac = 1.0 - min(start, end)
+        top = inner.top() + inner.height() * top_frac
+        bottom = inner.top() + inner.height() * bottom_frac
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(fill)
+        painter.drawRect(QRect(inner.left() + 1, int(top), inner.width() - 2, max(2, int(bottom - top))))
+        painter.end()
+
+
+class Position2DWidget(QWidget):
+    """2D-Positionsfeld fuer ein Achsenpaar mit Mitte (Stick X/Y, Ministick).
+
+    Zeigt die tatsaechliche Auslenkung als Punkt in einem Quadrat, dazu
+    darunter die vorzeichenbehafteten Abweichungen beider Achsen von ihrer
+    jeweiligen Mitte - kein Rohwert, keine Prozente, keine Deadzone.
+    Angelehnt an die "X Axis / Y Axis"-Darstellung der originalen Saitek/
+    Logitech-Windows-Software.
+    """
+
+    def __init__(self, label: str, x_axis: Axis, y_axis: Axis, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.label = label
+        self.x_axis = x_axis
+        self.y_axis = y_axis
+        self.x_value = x_axis.info.value
+        self.y_value = y_axis.info.value
+        self.setMinimumSize(150, 175)
+        self.setToolTip(f"evdev ABS 0x{x_axis.code:02x} / 0x{y_axis.code:02x}")
+
+    def set_values(self, x: int, y: int) -> None:
+        if (x, y) != (self.x_value, self.y_value):
+            self.x_value, self.y_value = x, y
+            self.update()
+
+    @staticmethod
+    def _fraction(axis: Axis, value: int) -> float:
+        info = axis.info
+        if info.span == 0:
+            return 0.5
+        shown = display_value(axis.code, info, value)
+        return min(1.0, max(0.0, (shown - info.minimum) / info.span))
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        pal = self.palette()
+        text_colour = pal.color(QPalette.ColorRole.WindowText)
+        muted = QColor(text_colour)
+        muted.setAlpha(150)
+        track = pal.color(QPalette.ColorRole.Base)
+        edge = pal.color(QPalette.ColorRole.Mid)
+        highlight = pal.color(QPalette.ColorRole.Highlight)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        small = QFont(self.font())
+        small.setPointSizeF(max(8.0, small.pointSizeF() - 0.5))
+        painter.setFont(small)
+
+        label_h = 16
+        value_h = 16
+        painter.setPen(QPen(text_colour))
+        painter.drawText(
+            QRect(0, 0, self.width(), label_h),
+            Qt.AlignmentFlag.AlignCenter,
+            self.label,
+        )
+
+        side = min(self.width(), self.height() - label_h - value_h) - 4
+        square = QRect(
+            (self.width() - side) // 2, label_h + 2, side, side
+        )
+        painter.setPen(QPen(edge, 1))
+        painter.setBrush(track)
+        painter.drawRect(square)
+
+        cx = square.left() + square.width() * self._fraction(self.x_axis, self.x_value)
+        # Bildschirm-Y waechst nach unten; "oben" im Feld soll dem Maximum
+        # der Y-Achse entsprechen, wie bei der Vorlage.
+        cy = square.top() + square.height() * (1.0 - self._fraction(self.y_axis, self.y_value))
+
+        # Fadenkreuz in der Mitte
+        painter.setPen(QPen(muted, 1))
+        mid_x, mid_y = square.center().x(), square.center().y()
+        painter.drawLine(mid_x - 6, mid_y, mid_x + 6, mid_y)
+        painter.drawLine(mid_x, mid_y - 6, mid_x, mid_y + 6)
+
+        # Aktuelle Position
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(highlight)
+        r = 5
+        painter.drawEllipse(int(cx - r), int(cy - r), r * 2, r * 2)
+
+        x_info, y_info = self.x_axis.info, self.y_axis.info
+        x_shown = display_value(self.x_axis.code, x_info, self.x_value)
+        y_shown = display_value(self.y_axis.code, y_info, self.y_value)
+        text = f"X: {x_shown - x_info.centre:+d}   Y: {y_shown - y_info.centre:+d}"
+        painter.setPen(QPen(muted))
+        painter.drawText(
+            QRect(0, self.height() - value_h, self.width(), value_h),
+            Qt.AlignmentFlag.AlignCenter,
+            text,
+        )
         painter.end()
 
 

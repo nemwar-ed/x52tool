@@ -146,8 +146,8 @@ AXIS_LABELS: dict[int, str] = {
     ecodes.ABS_RUDDER: "Rudder",
     ecodes.ABS_RX: "Rotary 1",
     ecodes.ABS_RY: "Rotary 2",
-    ecodes.ABS_HAT0X: "Hat 1 X",
-    ecodes.ABS_HAT0Y: "Hat 1 Y",
+    ecodes.ABS_HAT0X: "POV 1 X",
+    ecodes.ABS_HAT0Y: "POV 1 Y",
 }
 
 # Achsen, bei denen eine Deadzone unsinnig ist: digitale Hats und der
@@ -208,7 +208,7 @@ def display_value(code: int, info: AbsInfo, raw: int) -> int:
 
 # Hat-Achsenpaare (X-Code -> Y-Code), fuer die Kompass-Darstellung im
 # Live-Test statt zweier Balken. Bislang nur Hat 1 - Oliver hat bestaetigt,
-# dass POV-Hat 2 und 3 beim X52 Pro als Tasten kommen, nicht als Achsen.
+# dass POV 2 und Throttle Hat beim X52 Pro als Tasten kommen, nicht als Achsen.
 HAT_AXIS_PAIRS: dict[int, int] = {
     ecodes.ABS_HAT0X: ecodes.ABS_HAT0Y,
     ecodes.ABS_HAT1X: ecodes.ABS_HAT1Y,
@@ -316,11 +316,11 @@ X52_PRO_BUTTON_LABELS: dict[int, str] = {
 # eigene Gruppierung (hoch, rechts, runter, links), analog zu den echten
 # Hat-Achsen in HAT_AXIS_PAIRS.
 X52_PRO_POV_BUTTON_GROUPS: dict[str, tuple[int, int, int, int]] = {
-    "Hat 2": (
+    "POV 2": (
         ecodes.BTN_TRIGGER_HAPPY4, ecodes.BTN_TRIGGER_HAPPY5,
         ecodes.BTN_TRIGGER_HAPPY6, ecodes.BTN_TRIGGER_HAPPY7,
     ),
-    "Hat 3": (
+    "Throttle Hat": (
         ecodes.BTN_TRIGGER_HAPPY8, ecodes.BTN_TRIGGER_HAPPY9,
         ecodes.BTN_TRIGGER_HAPPY10, ecodes.BTN_TRIGGER_HAPPY11,
     ),
