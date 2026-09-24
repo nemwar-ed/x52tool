@@ -133,22 +133,83 @@ class LiveTab(QWidget):
 
         # -- Tasten, gruppiert wie im Original-Windows-Tool -----------------
         by_btn_code = {b.code: b for b in device.buttons}
-        self.body_layout.addWidget(self._build_buttons_box(by_btn_code))
-        toggles_mode_row = QHBoxLayout()
-        toggles_mode_row.addStretch(1)
-        toggles_box = self._build_toggles_box(by_btn_code)
-        if toggles_box is not None:
-            toggles_mode_row.addWidget(toggles_box)
+
+        top_buttons_row = QHBoxLayout()
+        top_buttons_row.addWidget(self._build_buttons_box(by_btn_code))
         mode_box = self._build_mode_box(by_btn_code)
         if mode_box is not None:
-            toggles_mode_row.addWidget(mode_box)
-        toggles_mode_row.addStretch(1)
-        self.body_layout.addLayout(toggles_mode_row)
+            top_buttons_row.addWidget(mode_box)
+        top_buttons_row.addStretch(1)
+        self.body_layout.addLayout(top_buttons_row)
+
+        cross_row = QHBoxLayout()
+        cross_row.addStretch(1)
+        for box in (
+            self._build_cross_box(
+                "POV2", by_btn_code,
+                up=("Hoch", ecodes.BTN_TRIGGER_HAPPY4),
+                right=("Rechts", ecodes.BTN_TRIGGER_HAPPY5),
+                down=("Runter", ecodes.BTN_TRIGGER_HAPPY6),
+                left=("Links", ecodes.BTN_TRIGGER_HAPPY7),
+            ),
+            self._build_cross_box(
+                "Throttle Hat", by_btn_code,
+                up=("Hoch", ecodes.BTN_TRIGGER_HAPPY8),
+                right=("Rechts", ecodes.BTN_TRIGGER_HAPPY9),
+                down=("Runter", ecodes.BTN_TRIGGER_HAPPY10),
+                left=("Links", ecodes.BTN_TRIGGER_HAPPY11),
+            ),
+            self._build_cross_box(
+                "Mouse", by_btn_code,
+                up=("Wheel hoch", ecodes.BTN_TRIGGER_HAPPY1),
+                right=("Rechts", ecodes.BTN_TRIGGER_HAPPY3),
+                down=("Wheel runter", ecodes.BTN_TRIGGER_HAPPY2),
+                left=("Links", ecodes.BTN_DEAD),
+            ),
+        ):
+            if box is not None:
+                cross_row.addWidget(box)
+        cross_row.addStretch(1)
+        self.body_layout.addLayout(cross_row)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addStretch(1)
         mfd_box = self._build_mfd_box(by_btn_code)
         if mfd_box is not None:
-            self.body_layout.addWidget(mfd_box)
+            bottom_row.addWidget(mfd_box)
+        toggles_box = self._build_toggles_box(by_btn_code)
+        if toggles_box is not None:
+            bottom_row.addWidget(toggles_box)
+        bottom_row.addStretch(1)
+        self.body_layout.addLayout(bottom_row)
 
         self.body_layout.addStretch(1)
+
+    def _build_cross_box(
+        self,
+        title: str,
+        by_btn_code: dict[int, Button],
+        up: tuple[str, int],
+        right: tuple[str, int],
+        down: tuple[str, int],
+        left: tuple[str, int],
+    ) -> QGroupBox | None:
+        """Vier Tasten im Kreuz - naeher an der physischen Hat-Form als
+        eine Reihe. Fuer POV2/Throttle Hat (echte Hats aus Einzeltasten)
+        und Mouse (Wheel hoch/runter, Klick links/rechts - passt auf
+        dieselbe Kreuzform)."""
+        entries = {"up": up, "right": right, "down": down, "left": left}
+        if not any(code in by_btn_code for _, code in entries.values()):
+            return None
+        box = QGroupBox(title)
+        grid = QGridLayout(box)
+        positions = {"up": (0, 1), "left": (1, 0), "right": (1, 2), "down": (2, 1)}
+        for key, (label, code) in entries.items():
+            tile = self._tile(by_btn_code, label, [code])
+            if tile:
+                row, col = positions[key]
+                grid.addWidget(tile, row, col)
+        return box
 
     def _tile(self, by_btn_code: dict[int, Button], label: str, codes: list[int]) -> ButtonTile | None:
         if not any(c in by_btn_code for c in codes):
@@ -168,9 +229,9 @@ class LiveTab(QWidget):
         return row
 
     def _build_buttons_box(self, by_btn_code: dict[int, Button]) -> QGroupBox:
-        """Tasten so gruppiert, wie sie auch am Geraet zusammengehoeren -
-        nachgebaut aus der originalen Windows-Software (Oliver's Vorlage),
-        statt einer einzigen durchnummerierten Liste."""
+        """Einzeltasten ohne Hat-Charakter, zentriert in drei Zeilen:
+        Trigger/Sec.Trigger, Fire-Gruppe, Pinkie/Clutch. POV2/Throttle
+        Hat/Mouse haben eigene Kreuz-Bloecke (siehe _build_cross_box)."""
         box = QGroupBox("Buttons")
         layout = QVBoxLayout(box)
 
@@ -182,24 +243,6 @@ class LiveTab(QWidget):
                 ("Fire D", [ecodes.BTN_BASE]), ("Fire E", [ecodes.BTN_BASE2]),
             ],
             [("Pinkie", [ecodes.BTN_PINKIE]), ("Clutch (i)", [ecodes.BTN_TRIGGER_HAPPY15])],
-            [
-                ("POV2 hoch", [ecodes.BTN_TRIGGER_HAPPY4]),
-                ("POV2 rechts", [ecodes.BTN_TRIGGER_HAPPY5]),
-                ("POV2 runter", [ecodes.BTN_TRIGGER_HAPPY6]),
-                ("POV2 links", [ecodes.BTN_TRIGGER_HAPPY7]),
-            ],
-            [
-                ("Throttle Hat hoch", [ecodes.BTN_TRIGGER_HAPPY8]),
-                ("Throttle Hat rechts", [ecodes.BTN_TRIGGER_HAPPY9]),
-                ("Throttle Hat runter", [ecodes.BTN_TRIGGER_HAPPY10]),
-                ("Throttle Hat links", [ecodes.BTN_TRIGGER_HAPPY11]),
-            ],
-            [
-                ("Mouse links", [ecodes.BTN_DEAD]),
-                ("Wheel hoch", [ecodes.BTN_TRIGGER_HAPPY1]),
-                ("Wheel runter", [ecodes.BTN_TRIGGER_HAPPY2]),
-                ("Mouse rechts", [ecodes.BTN_TRIGGER_HAPPY3]),
-            ],
         ]
         for row_spec in rows:
             tiles = [t for label, codes in row_spec if (t := self._tile(by_btn_code, label, codes))]
