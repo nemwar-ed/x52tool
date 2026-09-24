@@ -146,8 +146,10 @@ class LiveTab(QWidget):
             used_codes.add(axis.code)
             grid.addWidget(bar, 0, 1, 3, 1)
 
-        # Rotary 1/2 uebereinander, rechts vom Schubhebel
-        for row, code in enumerate((ecodes.ABS_RX, ecodes.ABS_RY)):
+        # Rotary 2 (X-Achse) oben, Rotary 1 (Y-Achse) darunter - rechts
+        # vom Schubhebel. Reihenfolge von Oliver an echter Hardware
+        # bestaetigt.
+        for row, code in enumerate((ecodes.ABS_RY, ecodes.ABS_RX)):
             if code in by_code:
                 axis = by_code[code]
                 bar = AxisBar(axis)

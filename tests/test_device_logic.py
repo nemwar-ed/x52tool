@@ -135,8 +135,8 @@ def test_axis_label_rotary_achsen():
     bestaetigt - vorher fielen sie faelschlich unter 'Ministick'."""
     from evdev import ecodes
     from x52tool.device import axis_label
-    assert axis_label(ecodes.ABS_RX) == "Rotary 1"
-    assert axis_label(ecodes.ABS_RY) == "Rotary 2"
+    assert axis_label(ecodes.ABS_RX) == "Rotary 1 (Y-Achse)"
+    assert axis_label(ecodes.ABS_RY) == "Rotary 2 (X-Achse)"
 
 
 def test_pov_button_gruppen_zeigen_auf_bekannte_tasten():
@@ -282,6 +282,22 @@ def test_display_value_spiegelt_stick_y():
     assert display_value(ecodes.ABS_Y, info, raw=1023) == 0
     # Die Mitte bleibt bei sich selbst.
     assert display_value(ecodes.ABS_Y, info, raw=512) == 511
+
+
+def test_display_value_spiegelt_ministick_x():
+    """Oliver hat bestaetigt: Mauszeiger bewegt sich nach oben, die Anzeige
+    im 2D-Feld zeigte nach unten - die X-Achse des Ministicks (ABS_MISC)
+    wird deshalb ebenfalls gespiegelt, gleiche Formel wie bei Schubhebel
+    und Stick-Y."""
+    from evdev import ecodes
+
+    from x52tool.device import ABS_MISC_Y, AbsInfo, display_value
+
+    info = AbsInfo(value=0, minimum=0, maximum=15, fuzz=0, flat=0, resolution=0)
+    assert display_value(ecodes.ABS_MISC, info, raw=0) == 15
+    assert display_value(ecodes.ABS_MISC, info, raw=15) == 0
+    # Ministick Y bleibt unangetastet - nur die X-Achse wurde bemaengelt.
+    assert display_value(ABS_MISC_Y, info, raw=0) == 0
 
 
 def test_ministick_gilt_als_bipolar():
