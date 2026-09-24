@@ -283,6 +283,19 @@ class LiveTab(QWidget):
                 layout.addWidget(tile)
         return box
 
+    def _rocker_segment_info(
+        self, by_btn_code: dict[int, Button], up: int, down: int, press: int
+    ) -> dict[str, tuple[str, int | None]]:
+        def num(code: int) -> int | None:
+            btn = by_btn_code.get(code)
+            return btn.index + 1 if btn else None
+
+        return {
+            "up": ("Hoch", num(up)),
+            "down": ("Runter", num(down)),
+            "press": ("Klick", num(press)),
+        }
+
     def _build_mfd_box(self, by_btn_code: dict[int, Button]) -> QGroupBox | None:
         left_codes = (ecodes.BTN_TRIGGER_HAPPY19, ecodes.BTN_TRIGGER_HAPPY20, ecodes.BTN_TRIGGER_HAPPY16)
         right_codes = (ecodes.BTN_TRIGGER_HAPPY21, ecodes.BTN_TRIGGER_HAPPY22, ecodes.BTN_TRIGGER_HAPPY23)
@@ -296,7 +309,10 @@ class LiveTab(QWidget):
 
         if all(c in by_btn_code for c in left_codes):
             up, down, press = left_codes
-            rocker = RockerTriplet("Links", up, down, press)
+            rocker = RockerTriplet(
+                "Links", up, down, press,
+                segment_info=self._rocker_segment_info(by_btn_code, up, down, press),
+            )
             rocker.setMinimumSize(85, 100)
             self.rockers.append(rocker)
             row.addWidget(rocker)
@@ -315,7 +331,10 @@ class LiveTab(QWidget):
 
         if all(c in by_btn_code for c in right_codes):
             up, down, press = right_codes
-            rocker = RockerTriplet("Rechts", up, down, press)
+            rocker = RockerTriplet(
+                "Rechts", up, down, press,
+                segment_info=self._rocker_segment_info(by_btn_code, up, down, press),
+            )
             rocker.setMinimumSize(85, 100)
             self.rockers.append(rocker)
             row.addWidget(rocker)

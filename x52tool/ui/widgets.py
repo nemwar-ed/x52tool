@@ -491,16 +491,20 @@ class RockerTriplet(QWidget):
         press_code: int,
         parent: QWidget | None = None,
         orientation: str = "vertical",
+        segment_info: dict[str, tuple[str, int | None]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.label = label
         self.codes = {"up": up_code, "down": down_code, "press": press_code}
         self.orientation = orientation
         self._pressed = {"up": False, "down": False, "press": False}
+        # (Kurzname, Tastennummer) je Segment - fuer Beschriftung/Nummer
+        # direkt im Segment, wie bei ButtonTile.
+        self.segment_info = segment_info or {}
         if orientation == "vertical":
-            self.setMinimumSize(34, 80)
+            self.setMinimumSize(40, 90)
         else:
-            self.setMinimumSize(70, 42)
+            self.setMinimumSize(80, 46)
         self.setToolTip(f"{label}: hoch 0x{up_code:x} / runter 0x{down_code:x} / Klick 0x{press_code:x}")
 
     def set_pressed(self, pressed: dict[int, bool]) -> None:
@@ -536,6 +540,9 @@ class RockerTriplet(QWidget):
 
         painter.setPen(QPen(edge, 1))
         body = QRect(0, label_h, self.width(), self.height() - label_h)
+        text_colour_active = pal.color(QPalette.ColorRole.HighlightedText)
+        tiny = QFont(self.font())
+        tiny.setPointSizeF(max(6.5, small.pointSizeF() - 1.0))
         segments = ("up", "press", "down")
         n = len(segments)
         for i, key in enumerate(segments):
@@ -545,8 +552,17 @@ class RockerTriplet(QWidget):
             else:
                 w = body.width() / n
                 rect = QRect(int(body.left() + i * w), body.top(), int(w) - 2, body.height())
-            painter.setBrush(highlight if self._pressed[key] else base)
+            active = self._pressed[key]
+            painter.setPen(QPen(edge, 1))
+            painter.setBrush(highlight if active else base)
             painter.drawRoundedRect(rect, 2, 2)
+
+            seg_label, seg_number = self.segment_info.get(key, ("", None))
+            if seg_label or seg_number is not None:
+                painter.setPen(QPen(text_colour_active if active else text_colour))
+                painter.setFont(tiny)
+                text = f"{seg_number}  {seg_label}" if seg_number is not None else seg_label
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
         painter.end()
 
 
