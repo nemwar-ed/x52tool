@@ -360,13 +360,18 @@ class _CompassWidget(QWidget):
         painter.setBrush(highlight if centred else edge)
         painter.drawEllipse(int(cx - r_dot * 0.6), int(cy - r_dot * 0.6), int(r_dot * 1.2), int(r_dot * 1.2))
 
-        # Die 8 Positionen, aktuelle Richtung hervorgehoben
+        # Die 8 Positionen, aktuelle Richtung hervorgehoben. Diagonalen
+        # (Ecken) werden bewusst kleiner gezeichnet als die vier
+        # Haupt-Richtungen - eine leichte visuelle Andeutung, keine
+        # Einschraenkung: alle drei Hats koennen tatsaechlich 8 Wege.
         for dx, dy in self.DIRECTIONS:
+            is_diagonal = dx != 0 and dy != 0
             px = cx + dx * r_outer * 0.72
             py = cy + dy * r_outer * 0.72
             is_active = not centred and (dx, dy) == active
             painter.setBrush(highlight if is_active else edge)
-            size = r_dot * (1.3 if is_active else 1.0)
+            base_size = r_dot * (0.7 if is_diagonal else 1.0)
+            size = base_size * (1.3 if is_active else 1.0)
             painter.drawEllipse(int(px - size / 2), int(py - size / 2), int(size), int(size))
 
         painter.end()

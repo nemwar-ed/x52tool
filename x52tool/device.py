@@ -186,17 +186,22 @@ NO_RELIABLE_CENTER_AXES = {
 }
 
 # Achsen, deren Rohwerte dem Kernel gegenueber "andersrum" laufen, als ein
-# Mensch es erwartet. Beim X52-Schubhebel (ABS_Z) meldet der Kernel bei
-# Leerlauf (Hebel ganz unten) den hoechsten Rohwert und bei Vollgas (Hebel
-# ganz oben) den niedrigsten - von Oliver an echter Hardware bestaetigt
-# (Hebel unten -> 255, Hebel oben -> 0).
+# Mensch es erwartet.
 #
-# Das ist NUR ein Anzeige-Anliegen fuer den Live-Test-Balken. Kalibrierung,
-# Analyse und alles, was tatsaechlich in den Kernel geschrieben wird,
-# bleiben unangetastet - ein Spiel regelt eine "echte" Invertierung ueber
-# seine eigene Achsen-Einstellung, das soll dieses Tool nicht heimlich
-# vorwegnehmen.
-DISPLAY_INVERTED_AXES = {ecodes.ABS_Z}
+# ABS_Z (Schubhebel): bei Leerlauf (Hebel ganz unten) meldet der Kernel den
+# hoechsten Rohwert, bei Vollgas (Hebel ganz oben) den niedrigsten - von
+# Oliver an echter Hardware bestaetigt (Hebel unten -> 255, Hebel oben -> 0).
+#
+# ABS_Y (Stick vor/zurueck): folgt der in Flugsimulatoren ueblichen
+# Konvention (Stick nach vorne = negativer Wert, Nase runter). Fuer die
+# Anzeige soll das andersherum laufen, wie es Oliver beschrieben hat.
+#
+# Das ist NUR ein Anzeige-Anliegen fuer den Live-Test-Balken/das 2D-Feld.
+# Kalibrierung, Analyse und alles, was tatsaechlich in den Kernel
+# geschrieben wird, bleiben unangetastet - ein Spiel regelt eine "echte"
+# Invertierung ueber seine eigene Achsen-Einstellung, das soll dieses Tool
+# nicht heimlich vorwegnehmen.
+DISPLAY_INVERTED_AXES = {ecodes.ABS_Z, ecodes.ABS_Y}
 
 
 def display_value(code: int, info: AbsInfo, raw: int) -> int:

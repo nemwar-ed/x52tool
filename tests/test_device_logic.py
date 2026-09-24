@@ -268,6 +268,22 @@ def test_display_value_spiegelt_x52_schubhebel():
     assert display_value(ecodes.ABS_X, info, raw=200) == 200
 
 
+def test_display_value_spiegelt_stick_y():
+    """Stick-Y folgt der Flugsimulator-Konvention (vorne = negativ). Fuer
+    die Anzeige soll das andersherum laufen - symmetrisch um die Mitte,
+    dieselbe Formel wie beim Schubhebel funktioniert auch fuer bipolare
+    Achsen korrekt."""
+    from evdev import ecodes
+
+    from x52tool.device import AbsInfo, display_value
+
+    info = AbsInfo(value=0, minimum=0, maximum=1023, fuzz=0, flat=0, resolution=0)
+    assert display_value(ecodes.ABS_Y, info, raw=0) == 1023
+    assert display_value(ecodes.ABS_Y, info, raw=1023) == 0
+    # Die Mitte bleibt bei sich selbst.
+    assert display_value(ecodes.ABS_Y, info, raw=512) == 511
+
+
 def test_ministick_gilt_als_bipolar():
     """Der Ministick liegt in Ruhe in der Mitte (Rohwert 8 von 0..15),
     nicht am Anfang - deshalb gehoert er zu BIPOLAR_AXES in der UI."""

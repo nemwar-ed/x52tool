@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from evdev import ecodes
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -88,8 +90,8 @@ class LiveTab(QWidget):
         top_row.addWidget(self._build_stick_and_throttle_box(by_code, used_codes))
         ministick_box = self._build_ministick_box(by_code, used_codes)
         if ministick_box is not None:
-            top_row.addWidget(ministick_box)
-        top_row.addStretch(1)
+            ministick_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            top_row.addWidget(ministick_box, 1, Qt.AlignmentFlag.AlignTop)
         self.body_layout.addLayout(top_row)
 
         # Hat-Achsencodes schon hier reservieren (nicht erst in
@@ -187,7 +189,7 @@ class LiveTab(QWidget):
         pos = Position2DWidget("Maus-Stick", x_axis, y_axis)
         self.position_widgets.append((x_axis.code, y_axis.code, pos))
         used_codes.update((x_axis.code, y_axis.code))
-        layout.addWidget(pos)
+        layout.addWidget(pos, 0, Qt.AlignmentFlag.AlignHCenter)
         return box
 
     def _build_hats_row(
