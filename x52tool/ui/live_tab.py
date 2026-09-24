@@ -135,15 +135,13 @@ class LiveTab(QWidget):
         by_btn_code = {b.code: b for b in device.buttons}
 
         top_buttons_row = QHBoxLayout()
-        top_buttons_row.addWidget(self._build_buttons_box(by_btn_code))
+        top_buttons_row.addWidget(self._build_buttons_box(by_btn_code), 3)
         mode_box = self._build_mode_box(by_btn_code)
         if mode_box is not None:
-            top_buttons_row.addWidget(mode_box)
-        top_buttons_row.addStretch(1)
+            top_buttons_row.addWidget(mode_box, 1)
         self.body_layout.addLayout(top_buttons_row)
 
         cross_row = QHBoxLayout()
-        cross_row.addStretch(1)
         for box in (
             self._build_cross_box(
                 "POV2", by_btn_code,
@@ -168,19 +166,16 @@ class LiveTab(QWidget):
             ),
         ):
             if box is not None:
-                cross_row.addWidget(box)
-        cross_row.addStretch(1)
+                cross_row.addWidget(box, 1)
         self.body_layout.addLayout(cross_row)
 
         bottom_row = QHBoxLayout()
-        bottom_row.addStretch(1)
         mfd_box = self._build_mfd_box(by_btn_code)
         if mfd_box is not None:
-            bottom_row.addWidget(mfd_box)
+            bottom_row.addWidget(mfd_box, 3)
         toggles_box = self._build_toggles_box(by_btn_code)
         if toggles_box is not None:
-            bottom_row.addWidget(toggles_box)
-        bottom_row.addStretch(1)
+            bottom_row.addWidget(toggles_box, 2)
         self.body_layout.addLayout(bottom_row)
 
         self.body_layout.addStretch(1)
