@@ -284,20 +284,20 @@ def test_display_value_spiegelt_stick_y():
     assert display_value(ecodes.ABS_Y, info, raw=512) == 511
 
 
-def test_display_value_spiegelt_ministick_x_und_y():
-    """Oliver hat zunaechst nur X vermutet, dann bestaetigt: beide
-    Ministick-Achsen zeigten andersherum, als Mauszeiger-Verhalten und
-    Stick-Konvention erwarten liessen - beide werden deshalb gespiegelt,
-    gleiche Formel wie bei Schubhebel und Stick-Y."""
+def test_display_value_spiegelt_nur_ministick_y():
+    """Oliver hat erst X vermutet, dann Y bestaetigt, dann X wieder
+    verworfen (links/rechts war dadurch vertauscht) - am Ende ist nur die
+    Y-Achse des Ministicks gespiegelt, X bleibt roh."""
     from evdev import ecodes
 
     from x52tool.device import ABS_MISC_Y, AbsInfo, display_value
 
     info = AbsInfo(value=0, minimum=0, maximum=15, fuzz=0, flat=0, resolution=0)
-    assert display_value(ecodes.ABS_MISC, info, raw=0) == 15
-    assert display_value(ecodes.ABS_MISC, info, raw=15) == 0
     assert display_value(ABS_MISC_Y, info, raw=0) == 15
     assert display_value(ABS_MISC_Y, info, raw=15) == 0
+    # X bleibt unveraendert.
+    assert display_value(ecodes.ABS_MISC, info, raw=0) == 0
+    assert display_value(ecodes.ABS_MISC, info, raw=15) == 15
 
 
 def test_ministick_gilt_als_bipolar():
