@@ -414,6 +414,129 @@ class ButtonHatWidget(_CompassWidget):
 
 
 
+class ButtonTile(QLabel):
+    """Einzelne Taste (oder ein Tastenpaar) als kleine, frei platzierbare Kachel.
+
+    Ersetzt das alte Raster (ButtonGrid): auf der Silhouette sitzt jede
+    Taste an ihrer ungefaehren physischen Position statt in einer
+    durchnummerierten Liste - die Nummer entfaellt deshalb, der Name
+    reicht zur Identifikation. Ein Tastenpaar (z.B. T1/T2, oder Trigger
+    Stufe 1+2) leuchtet, sobald irgendeiner der Codes gedrueckt ist.
+    """
+
+    def __init__(
+        self, label: str, codes: list[int], evdev_name: str = "", parent: QWidget | None = None
+    ) -> None:
+        super().__init__(label, parent)
+        self.codes = codes
+        self._pressed = False
+        pal = self.palette()
+        self._highlight = pal.color(QPalette.ColorRole.Highlight)
+        self._highlight_text = pal.color(QPalette.ColorRole.HighlightedText)
+        self._base = pal.color(QPalette.ColorRole.Base)
+        self._mid = pal.color(QPalette.ColorRole.Mid)
+        muted = QColor(pal.color(QPalette.ColorRole.WindowText))
+        muted.setAlpha(160)
+        self._style_idle = (
+            f"QLabel{{border:1px solid {self._mid.name()};border-radius:3px;padding:2px 4px;"
+            f"color:rgba({muted.red()},{muted.green()},{muted.blue()},{muted.alphaF():.2f});"
+            f"background:{self._base.name()};}}"
+        )
+        self._style_active = (
+            f"QLabel{{border:1px solid {self._highlight.name()};border-radius:3px;padding:2px 4px;"
+            f"color:{self._highlight_text.name()};background:{self._highlight.name()};font-weight:700;}}"
+        )
+        small = QFont(self.font())
+        small.setPointSizeF(max(7.0, small.pointSizeF() - 1.5))
+        self.setFont(small)
+        self.setWordWrap(True)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(self._style_idle)
+        if evdev_name:
+            self.setToolTip(f"{evdev_name}  (0x{codes[0]:x})")
+
+    def set_pressed_state(self, pressed: dict[int, bool]) -> None:
+        now = any(pressed.get(code, False) for code in self.codes)
+        if now != self._pressed:
+            self._pressed = now
+            self.setStyleSheet(self._style_active if now else self._style_idle)
+
+
+class RockerTriplet(QWidget):
+    """Wippe/Rad mit drei Zustaenden: hoch, runter, gedrueckt/Klick.
+
+    Fuer das Mausrad am Schubhebel und die beiden Rollraeder an der
+    MFD-Basis - je drei kleine Segmente statt drei einzelner Kacheln,
+    kompakter fuer die Position auf der Silhouette.
+    """
+
+    def __init__(
+        self,
+        label: str,
+        up_code: int,
+        down_code: int,
+        press_code: int,
+        parent: QWidget | None = None,
+        orientation: str = "vertical",
+    ) -> None:
+        super().__init__(parent)
+        self.label = label
+        self.codes = {"up": up_code, "down": down_code, "press": press_code}
+        self.orientation = orientation
+        self._pressed = {"up": False, "down": False, "press": False}
+        if orientation == "vertical":
+            self.setMinimumSize(34, 80)
+        else:
+            self.setMinimumSize(70, 42)
+        self.setToolTip(f"{label}: hoch 0x{up_code:x} / runter 0x{down_code:x} / Klick 0x{press_code:x}")
+
+    def set_pressed(self, pressed: dict[int, bool]) -> None:
+        changed = False
+        for key, code in self.codes.items():
+            now = pressed.get(code, False)
+            if now != self._pressed[key]:
+                self._pressed[key] = now
+                changed = True
+        if changed:
+            self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        pal = self.palette()
+        text_colour = pal.color(QPalette.ColorRole.WindowText)
+        edge = pal.color(QPalette.ColorRole.Mid)
+        base = pal.color(QPalette.ColorRole.Base)
+        highlight = pal.color(QPalette.ColorRole.Highlight)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        label_h = 14
+        small = QFont(self.font())
+        small.setPointSizeF(max(7.0, small.pointSizeF() - 1.5))
+        painter.setFont(small)
+        painter.setPen(QPen(text_colour))
+        painter.drawText(
+            QRect(0, 0, self.width(), label_h),
+            Qt.AlignmentFlag.AlignCenter,
+            self.label,
+        )
+
+        painter.setPen(QPen(edge, 1))
+        body = QRect(0, label_h, self.width(), self.height() - label_h)
+        segments = ("up", "press", "down")
+        n = len(segments)
+        for i, key in enumerate(segments):
+            if self.orientation == "vertical":
+                h = body.height() / n
+                rect = QRect(body.left(), int(body.top() + i * h), body.width(), int(h) - 2)
+            else:
+                w = body.width() / n
+                rect = QRect(int(body.left() + i * w), body.top(), int(w) - 2, body.height())
+            painter.setBrush(highlight if self._pressed[key] else base)
+            painter.drawRoundedRect(rect, 2, 2)
+        painter.end()
+
+
 class ButtonGrid(QWidget):
     """Raster aller Tasten. Gedrueckte Tasten leuchten auf.
 
