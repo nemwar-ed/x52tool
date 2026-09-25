@@ -25,8 +25,7 @@ from PyQt6.QtWidgets import (
 from .. import __version__, i18n
 from ..config import Settings
 from ..device import DeviceState, X52Device, find_related_nodes, scan
-from .analysis_tab import AnalysisTab
-from .calib_tab import CalibrationTab
+from .calib2_tab import Calib2Tab
 from .live_tab import LiveTab
 from .output_tab import OutputTab
 from .settings_tab import SettingsTab
@@ -174,21 +173,18 @@ class MainWindow(QMainWindow):
 
         self.tab_device   = DeviceTab()
         self.tab_live     = LiveTab()
-        self.tab_analysis = AnalysisTab()
-        self.tab_calib    = CalibrationTab(self.settings)
+        self.tab_calib2   = Calib2Tab(self.settings)
         self.tab_output   = OutputTab(self.settings)
         self.tab_settings = SettingsTab()
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.tab_device,   "")
         self.tabs.addTab(self.tab_live,     "")
-        self.tabs.addTab(self.tab_analysis, "")
-        self.tabs.addTab(self.tab_calib,    "")
+        self.tabs.addTab(self.tab_calib2,   "")
         self.tabs.addTab(self.tab_output,   "")
         self.tabs.addTab(self.tab_settings, "")
 
-        self.tab_analysis.suggestionsReady.connect(self._on_suggestions)
-        self.tab_calib.calibrationChanged.connect(self.tab_live.refresh_calibration)
+        self.tab_calib2.calibrationChanged.connect(self.tab_live.refresh_calibration)
         self.tab_settings.languageChanged.connect(self._on_language_changed)
 
         central = QWidget()
@@ -224,10 +220,9 @@ class MainWindow(QMainWindow):
         self.btn_rescan.setText(i18n.t("main.btn_rescan"))
         self.tabs.setTabText(0, i18n.t("main.tab_device"))
         self.tabs.setTabText(1, i18n.t("main.tab_live"))
-        self.tabs.setTabText(2, i18n.t("main.tab_analysis"))
-        self.tabs.setTabText(3, i18n.t("main.tab_calib"))
-        self.tabs.setTabText(4, i18n.t("main.tab_output"))
-        self.tabs.setTabText(5, i18n.t("settings.tab_label"))
+        self.tabs.setTabText(2, i18n.t("main.tab_calib2"))
+        self.tabs.setTabText(3, i18n.t("main.tab_output"))
+        self.tabs.setTabText(4, i18n.t("settings.tab_label"))
         # Statusbar
         if self.device is None:
             self.statusBar().showMessage(i18n.t("main.status_no_device"))
@@ -243,8 +238,7 @@ class MainWindow(QMainWindow):
         self._retranslate_own()
         self.tab_device.retranslate()
         self.tab_live.retranslate()
-        self.tab_calib.retranslate()
-        self.tab_analysis.retranslate()
+        self.tab_calib2.retranslate()
         self.tab_output.retranslate()
         self.tab_settings.retranslate()
 
@@ -295,8 +289,7 @@ class MainWindow(QMainWindow):
 
         self.tab_device.show_device(device, self._denied, self._errors)
         self.tab_live.set_device(device)
-        self.tab_analysis.set_device(device)
-        self.tab_calib.set_device(device)
+        self.tab_calib2.set_device(device)
 
         if device is None:
             self.statusBar().showMessage(i18n.t("main.status_no_device"))
@@ -326,11 +319,6 @@ class MainWindow(QMainWindow):
             return
         if self.tabs.currentWidget() is self.tab_live:
             self.tab_live.refresh(self.state.axes, self.state.buttons)
-
-    def _on_suggestions(self, suggestions: dict) -> None:
-        cleaned = {int(code): dict(values) for code, values in suggestions.items()}
-        self.tab_calib.apply_suggestions(cleaned)
-        self.tabs.setCurrentWidget(self.tab_calib)
 
     # -- Ende --------------------------------------------------------------
 

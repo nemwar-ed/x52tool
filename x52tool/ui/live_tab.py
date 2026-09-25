@@ -30,6 +30,7 @@ from ..device import (
     X52Device,
 )
 from .widgets import (
+    AxesPanel,
     AxisBar,
     ButtonHatWidget,
     ButtonTile,
@@ -50,6 +51,7 @@ class LiveTab(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.device: X52Device | None = None
+        self.axes_panel: AxesPanel | None = None
         self.bars: dict[int, AxisBar] = {}
         self.position_widgets: list[tuple[int, int, Position2DWidget]] = []
         self.axis_hats: dict[int, HatWidget] = {}
@@ -98,8 +100,13 @@ class LiveTab(QWidget):
         by_code: dict[int, Axis] = {ax.code: ax for ax in device.axes}
         used_codes: set[int] = set()
 
+        self.axes_panel = AxesPanel()
+        self.axes_panel.set_device(by_code, used_codes)
+        self.bars = self.axes_panel.bars
+        self.position_widgets = self.axes_panel.position_widgets
+
         top_row = QHBoxLayout()
-        top_row.addWidget(self._build_stick_and_throttle_box(by_code, used_codes), 3)
+        top_row.addWidget(self.axes_panel, 3)
         ministick_box = self._build_ministick_box(by_code, used_codes)
         if ministick_box is not None:
             top_row.addWidget(ministick_box, 1)
@@ -438,14 +445,9 @@ class LiveTab(QWidget):
 
     def refresh_calibration(self) -> None:
         """Nach dem Schreiben neuer Kalibrierdaten die Balken/Felder neu zeichnen."""
-        if self.device is None:
+        if self.device is None or self.axes_panel is None:
             return
-        for axis in self.device.axes:
-            bar = self.bars.get(axis.code)
-            if bar is not None:
-                bar.set_info(axis.info)
-        for x_code, y_code, pos in self.position_widgets:
-            pos.update()
+        self.axes_panel.refresh_calibration(self.device)
 
     def retranslate(self) -> None:
         """Beschriftungen nach Sprachwechsel aktualisieren.

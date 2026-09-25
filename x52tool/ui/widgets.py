@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPen
-from PyQt6.QtWidgets import QGridLayout, QLabel, QSizePolicy, QWidget
+from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QWidget
 
 from evdev import ecodes
 
@@ -634,3 +634,85 @@ class ButtonGrid(QWidget):
             if now != self._state[code]:
                 self._state[code] = now
                 cell.setStyleSheet(self.style_active if now else self.style_idle)
+
+
+class AxesPanel(QWidget):
+    """Achsen-Anzeigeblock: Stick X/Y, Schubhebel, Rotaries, Twist, Schieber.
+
+    Wird sowohl vom Live-Tab als auch vom Kalibrierungs-Tab verwendet.
+    Nach set_device() wird der Block neu aufgebaut.
+    refresh(axes) muss im UI-Takt aufgerufen werden.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.bars: dict[int, AxisBar] = {}
+        self.position_widgets: list[tuple[int, int, Position2DWidget]] = []
+        self._layout = QGridLayout(self)
+
+    def set_device(self, by_code: dict[int, Axis], used_codes: set[int]) -> None:
+        """Baut den Block für das übergebene Gerät auf."""
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self.bars.clear()
+        self.position_widgets.clear()
+
+        if ecodes.ABS_X in by_code and ecodes.ABS_Y in by_code:
+            x_axis, y_axis = by_code[ecodes.ABS_X], by_code[ecodes.ABS_Y]
+            pos = Position2DWidget("Stick", x_axis, y_axis)
+            self.position_widgets.append((x_axis.code, y_axis.code, pos))
+            used_codes.update((x_axis.code, y_axis.code))
+            self._layout.addWidget(pos, 0, 0, 3, 1)
+
+        if ecodes.ABS_Z in by_code:
+            axis = by_code[ecodes.ABS_Z]
+            bar = AxisBar(axis, orientation="vertical")
+            self.bars[axis.code] = bar
+            used_codes.add(axis.code)
+            self._layout.addWidget(bar, 0, 1, 3, 1)
+
+        for row, code in enumerate((ecodes.ABS_RY, ecodes.ABS_RX)):
+            if code in by_code:
+                axis = by_code[code]
+                bar = AxisBar(axis)
+                self.bars[axis.code] = bar
+                used_codes.add(axis.code)
+                self._layout.addWidget(bar, row, 2)
+
+        bottom_row = QHBoxLayout()
+        has_bottom = False
+        for code in (ecodes.ABS_RZ, ecodes.ABS_THROTTLE):
+            if code in by_code:
+                axis = by_code[code]
+                bar = AxisBar(axis)
+                self.bars[axis.code] = bar
+                used_codes.add(axis.code)
+                bottom_row.addWidget(bar)
+                has_bottom = True
+        if has_bottom:
+            bottom_widget = QWidget()
+            bottom_widget.setLayout(bottom_row)
+            self._layout.addWidget(bottom_widget, 3, 0, 1, 3)
+
+        self._layout.setColumnStretch(2, 1)
+
+    def refresh(self, axes: dict[int, int]) -> None:
+        """Aktualisiert alle Balken und 2D-Felder mit neuen Rohwerten."""
+        for code, bar in self.bars.items():
+            if code in axes:
+                bar.set_value(axes[code])
+        for x_code, y_code, pos in self.position_widgets:
+            if x_code in axes and y_code in axes:
+                pos.set_values(axes[x_code], axes[y_code])
+
+    def refresh_calibration(self, device: "X52Device") -> None:  # type: ignore[name-defined]
+        """Nach dem Schreiben neuer Kalibrierdaten Balken neu zeichnen."""
+        for axis in device.axes:
+            bar = self.bars.get(axis.code)
+            if bar is not None:
+                bar.set_info(axis.info)
+        for _, _, pos in self.position_widgets:
+            pos.update()

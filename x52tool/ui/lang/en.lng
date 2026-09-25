@@ -10,6 +10,7 @@ tab_device           = Device
 tab_live             = Live Test
 tab_analysis         = Analysis
 tab_calib            = Calibration
+tab_calib2           = Axes & Calibration
 tab_output           = LED / MFD
 status_no_device     = No device
 status_device        = {name} – {axes} axes, {buttons} buttons
