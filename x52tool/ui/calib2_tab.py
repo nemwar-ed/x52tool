@@ -464,19 +464,6 @@ class Calib2Tab(QWidget):
                 info.minimum = vals["minimum"]
             if "maximum" in vals:
                 info.maximum = vals["maximum"]
-            # Für Achsen mit Mitte: minimum/maximum so verschieben dass
-            # (minimum + maximum) // 2 == gemessener Ruhepunkt.
-            # Der Kernel legt die Deadzone immer um diesen Mittelpunkt.
-            if has_center(axis.code):
-                tracker = self._trackers.get(axis.code)
-                if tracker is not None:
-                    measured_center = (
-                        tracker.center if axis.code in self._peak_results
-                        else tracker.noise_min + tracker.noise_range // 2
-                    )
-                    half_span = (info.maximum - info.minimum) // 2
-                    info.minimum = measured_center - half_span
-                    info.maximum = measured_center + half_span
             changes[axis.code] = info
 
         try:
