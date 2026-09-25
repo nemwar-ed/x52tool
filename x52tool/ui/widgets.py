@@ -137,12 +137,13 @@ class AxisBar(QWidget):
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
 
-        # Oranger Deadzone-Bereich um die Mitte (fuzz > 0)
+        # Oranger Deadzone-Bereich um die Mitte (fuzz oder flat > 0)
         info = self.axis.info
-        if info.fuzz > 0 and info.span > 0:
+        dead_size = max(info.fuzz, info.flat)
+        if dead_size > 0 and info.span > 0:
             dead_colour = QColor(255, 140, 0, 120)
             centre_frac = self._fraction(info.centre)
-            fuzz_frac   = info.fuzz / info.span
+            fuzz_frac   = dead_size / info.span
             dead_left  = inner.left() + inner.width() * max(0.0, centre_frac - fuzz_frac)
             dead_right = inner.left() + inner.width() * min(1.0, centre_frac + fuzz_frac)
             painter.setPen(Qt.PenStyle.NoPen)
@@ -197,12 +198,13 @@ class AxisBar(QWidget):
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
 
-        # Oranger Deadzone-Bereich um die Mitte (fuzz > 0)
+        # Oranger Deadzone-Bereich um die Mitte (fuzz oder flat > 0)
         info = self.axis.info
-        if info.fuzz > 0 and info.span > 0:
+        dead_size = max(info.fuzz, info.flat)
+        if dead_size > 0 and info.span > 0:
             dead_colour = QColor(255, 140, 0, 120)
             centre_frac = self._fraction(info.centre)
-            fuzz_frac   = info.fuzz / info.span
+            fuzz_frac   = dead_size / info.span
             # Vertikal: 0 = unten, 1 = oben
             dead_top    = inner.top() + inner.height() * max(0.0, 1.0 - centre_frac - fuzz_frac)
             dead_bottom = inner.top() + inner.height() * min(1.0, 1.0 - centre_frac + fuzz_frac)
@@ -303,9 +305,9 @@ class Position2DWidget(QWidget):
         painter.drawLine(mid_x - 6, mid_y, mid_x + 6, mid_y)
         painter.drawLine(mid_x, mid_y - 6, mid_x, mid_y + 6)
 
-        # Oranger Deadzone-Kreis (fuzz beider Achsen > 0)
-        fuzz_x = self.x_axis.info.fuzz
-        fuzz_y = self.y_axis.info.fuzz
+        # Oranger Deadzone-Kreis (fuzz oder flat > 0)
+        fuzz_x = max(self.x_axis.info.fuzz, self.x_axis.info.flat)
+        fuzz_y = max(self.y_axis.info.fuzz, self.y_axis.info.flat)
         if (fuzz_x > 0 or fuzz_y > 0) and self.x_axis.info.span > 0 and self.y_axis.info.span > 0:
             dead_colour = QColor(255, 140, 0, 80)
             rx = int(square.width()  * fuzz_x / self.x_axis.info.span)
