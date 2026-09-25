@@ -386,18 +386,26 @@ class Calib2Tab(QWidget):
     def _reset_peaks(self) -> None:
         """Schreibt Hardware-Defaults zurück und setzt Tracker + pending zurück."""
         if self.device is not None:
-            from ..axis_type import hardware_default
+            from ..axis_type import hardware_default, axis_kind, AxisKind
             from ..device import AbsInfo
+            window = self.window()
+            state  = getattr(window, "state", None)
             changes = {}
             for axis in self.device.axes:
                 hw = hardware_default(axis.code)
                 if hw is not None:
-                    changes[axis.code] = AbsInfo(*hw)
+                    info = AbsInfo(*hw)
+                    # FREE_SLIDER: aktuellen Rohwert beibehalten,
+                    # nicht auf 0 zurücksetzen
+                    if axis_kind(axis.code) == AxisKind.FREE_SLIDER:
+                        current = state.axes.get(axis.code) if state else None
+                        info.value = current if current is not None else axis.info.value
+                    changes[axis.code] = info
             if changes:
                 try:
                     self.device.apply_absinfo(changes)
                 except OSError:
-                    pass  # Nicht schreibbar – nur Tracker zurücksetzen
+                    pass
 
         window = self.window()
         state  = getattr(window, "state", None)
