@@ -377,11 +377,25 @@ class Calib2Tab(QWidget):
             self.btn_save.setEnabled(bool(self._pending))
 
     def _reset_peaks(self) -> None:
+        """Setzt Tracker zurück und stellt den evdev-Ausgangszustand wieder her."""
+        if self.device is not None:
+            try:
+                self.device.restore_baseline()
+            except OSError:
+                pass  # Nicht schreibbar – nur Tracker zurücksetzen
         window = self.window()
         state  = getattr(window, "state", None)
         for code, tracker in self._trackers.items():
             current = state.axes.get(code) if state else None
             tracker.reset_peaks(current)
+        self._peak_results.clear()
+        self._pending.clear()
+        self.btn_save.setEnabled(False)
+        if self.device is not None:
+            if self.device.writable:
+                self.status.setText(i18n.t("calib2.status_rw"))
+            else:
+                self.status.setText(i18n.t("calib2.status_ro", path=self.device.path))
 
     def _start_measurement(self) -> None:
         if self.device is None:
@@ -443,18 +457,19 @@ class Calib2Tab(QWidget):
                 info.minimum = vals["minimum"]
             if "maximum" in vals:
                 info.maximum = vals["maximum"]
-            # Mittelpunkt als neuen Kernel-Ruhewert setzen –
-            # nur für Achsen mit Mitte (SPRING_CENTER / MECHANICAL_CENTER).
-            # FREE_SLIDER haben keinen definierten Mittelpunkt.
+            # Für Achsen mit Mitte: minimum/maximum so verschieben dass
+            # (minimum + maximum) // 2 == gemessener Ruhepunkt.
+            # Der Kernel legt die Deadzone immer um diesen Mittelpunkt.
             if has_center(axis.code):
                 tracker = self._trackers.get(axis.code)
                 if tracker is not None:
-                    # Nach Peak-Messung: center aus peak_min/peak_max.
-                    # Ohne Peak-Messung: Mitte aus aktuellem Rauschfenster.
-                    if axis.code in self._peak_results:
-                        info.value = tracker.center
-                    else:
-                        info.value = tracker.noise_min + tracker.noise_range // 2
+                    measured_center = (
+                        tracker.center if axis.code in self._peak_results
+                        else tracker.noise_min + tracker.noise_range // 2
+                    )
+                    half_span = (info.maximum - info.minimum) // 2
+                    info.minimum = measured_center - half_span
+                    info.maximum = measured_center + half_span
             changes[axis.code] = info
 
         try:
