@@ -68,12 +68,12 @@ class NoiseTracker:
         self.peak_max = value
 
     def suggested_flat(self) -> int:
-        """Vorschlag für flat (Deadzone um Mitte). Nur für Achsen mit Mitte sinnvoll."""
-        return (self.noise_range // 2) + _FLAT_MARGIN
+        """Vorschlag für flat (Deadzone um Mitte). Nur nach Peak-Messung sinnvoll."""
+        return self.noise_range + _FLAT_MARGIN
 
     def suggested_fuzz(self) -> int:
         """Vorschlag für fuzz (Kernel-Rauschfilter). Für alle Achsen sinnvoll."""
-        return (self.noise_range // 2) + _FUZZ_MARGIN
+        return self.noise_range + _FUZZ_MARGIN
 
     def __repr__(self) -> str:
         return (

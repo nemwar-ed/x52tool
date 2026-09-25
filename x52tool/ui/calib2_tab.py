@@ -366,12 +366,19 @@ class Calib2Tab(QWidget):
                 self.table.item(row, 5).setText(i18n.t("calib2.suggest_range_ok"))
                 self._pending.pop(axis.code, None)
         else:
-            flat = tracker.suggested_flat()
             fuzz = tracker.suggested_fuzz()
-            self.table.item(row, 5).setText(
-                i18n.t("calib2.suggest_flat", flat=flat, fuzz=fuzz)
-            )
-            self._pending[axis.code] = {"flat": flat, "fuzz": fuzz}
+            # flat nur wenn Mittelpunkt aus Peak-Messung bekannt ist
+            if axis.code in self._peak_results:
+                flat = tracker.suggested_flat()
+                self.table.item(row, 5).setText(
+                    i18n.t("calib2.suggest_flat", flat=flat, fuzz=fuzz)
+                )
+                self._pending[axis.code] = {"flat": flat, "fuzz": fuzz}
+            else:
+                self.table.item(row, 5).setText(
+                    i18n.t("calib2.suggest_fuzz", fuzz=fuzz)
+                )
+                self._pending[axis.code] = {"fuzz": fuzz}
 
         if self.device and self.device.writable:
             self.btn_save.setEnabled(bool(self._pending))
