@@ -443,6 +443,18 @@ class Calib2Tab(QWidget):
                 info.minimum = vals["minimum"]
             if "maximum" in vals:
                 info.maximum = vals["maximum"]
+            # Mittelpunkt als neuen Kernel-Ruhewert setzen –
+            # nur für Achsen mit Mitte (SPRING_CENTER / MECHANICAL_CENTER).
+            # FREE_SLIDER haben keinen definierten Mittelpunkt.
+            if has_center(axis.code):
+                tracker = self._trackers.get(axis.code)
+                if tracker is not None:
+                    # Nach Peak-Messung: center aus peak_min/peak_max.
+                    # Ohne Peak-Messung: Mitte aus aktuellem Rauschfenster.
+                    if axis.code in self._peak_results:
+                        info.value = tracker.center
+                    else:
+                        info.value = tracker.noise_min + tracker.noise_range // 2
             changes[axis.code] = info
 
         try:
