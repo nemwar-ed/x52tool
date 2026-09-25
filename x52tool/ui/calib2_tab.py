@@ -446,8 +446,8 @@ class Calib2Tab(QWidget):
             kind = axis_kind(axis.code)
 
             if kind == AxisKind.FREE_SLIDER:
-                new_min = min(tracker.peak_min, axis.info.minimum)
-                new_max = max(tracker.peak_max, axis.info.maximum)
+                new_min = tracker.peak_min
+                new_max = tracker.peak_max
                 self._pending[axis.code] = {"minimum": new_min, "maximum": new_max}
                 self.table.item(row, 5).setText(
                     i18n.t("calib2.suggest_range_extend", lo=new_min, hi=new_max)
