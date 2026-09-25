@@ -49,3 +49,28 @@ def has_center(code: int) -> bool:
 def has_spring(code: int) -> bool:
     """True wenn die Achse federzentriert ist."""
     return axis_kind(code) is AxisKind.SPRING_CENTER
+
+
+# ---------------------------------------------------------------------------
+# Hardware-Defaults des X52 Pro (ermittelt per Bitmasken-Analyse)
+# Reihenfolge: (value, minimum, maximum, fuzz, flat, resolution)
+# ---------------------------------------------------------------------------
+
+_HW_DEFAULTS: dict[int, tuple[int, int, int, int, int, int]] = {
+    ecodes.ABS_X:        (0,   0, 1023, 0, 0, 0),  # Stick X
+    ecodes.ABS_Y:        (0,   0, 1023, 0, 0, 0),  # Stick Y
+    ecodes.ABS_RZ:       (0,   0, 1023, 0, 0, 0),  # Twist / Stick Z
+    ecodes.ABS_RX:       (0,   0,  255, 0, 0, 0),  # Rotary 1
+    ecodes.ABS_RY:       (0,   0,  255, 0, 0, 0),  # Rotary 2
+    ecodes.ABS_Z:        (0,   0, 1023, 0, 0, 0),  # Schubhebel
+    ecodes.ABS_THROTTLE: (0,   0,  255, 0, 0, 0),  # Schieberegler
+}
+
+
+def hardware_default(code: int) -> tuple[int, int, int, int, int, int] | None:
+    """Gibt den bekannten Hardware-Default für einen ABS-Code zurück.
+
+    Rückgabe: (value, minimum, maximum, fuzz, flat, resolution)
+    None wenn der Code unbekannt ist.
+    """
+    return _HW_DEFAULTS.get(code)

@@ -384,12 +384,21 @@ class Calib2Tab(QWidget):
             self.btn_save.setEnabled(bool(self._pending))
 
     def _reset_peaks(self) -> None:
-        """Setzt Tracker zurück und stellt den evdev-Ausgangszustand wieder her."""
+        """Schreibt Hardware-Defaults zurück und setzt Tracker + pending zurück."""
         if self.device is not None:
-            try:
-                self.device.restore_baseline()
-            except OSError:
-                pass  # Nicht schreibbar – nur Tracker zurücksetzen
+            from ..axis_type import hardware_default
+            from ..device import AbsInfo
+            changes = {}
+            for axis in self.device.axes:
+                hw = hardware_default(axis.code)
+                if hw is not None:
+                    changes[axis.code] = AbsInfo(*hw)
+            if changes:
+                try:
+                    self.device.apply_absinfo(changes)
+                except OSError:
+                    pass  # Nicht schreibbar – nur Tracker zurücksetzen
+
         window = self.window()
         state  = getattr(window, "state", None)
         for code, tracker in self._trackers.items():

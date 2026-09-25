@@ -137,10 +137,10 @@ class AxisBar(QWidget):
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
 
-        # Oranger Deadzone-Bereich um die Mitte (fuzz oder flat > 0)
+        # Oranger Deadzone-Bereich – nur für Achsen mit Mitte (bipolar)
         info = self.axis.info
         dead_size = max(info.fuzz, info.flat)
-        if dead_size > 0 and info.span > 0:
+        if dead_size > 0 and info.span > 0 and self.bipolar:
             dead_colour = QColor(255, 140, 0, 120)
             centre_frac = self._fraction(info.centre)
             fuzz_frac   = dead_size / info.span
@@ -198,10 +198,10 @@ class AxisBar(QWidget):
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
 
-        # Oranger Deadzone-Bereich um die Mitte (fuzz oder flat > 0)
+        # Oranger Deadzone-Bereich – nur für Achsen mit Mitte (bipolar)
         info = self.axis.info
         dead_size = max(info.fuzz, info.flat)
-        if dead_size > 0 and info.span > 0:
+        if dead_size > 0 and info.span > 0 and self.bipolar:
             dead_colour = QColor(255, 140, 0, 120)
             centre_frac = self._fraction(info.centre)
             fuzz_frac   = dead_size / info.span
