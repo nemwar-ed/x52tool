@@ -3,19 +3,14 @@
 Drei Bereiche:
   1. Achsen-Block  – AxesPanel (Live-Anzeige aller Achsen)
   2. Tabelle       – Rohwert, Peak-Min/Max, Rauschen, Deadzone-Vorschlag
-  3. Aktionsleiste – [Peaks zurücksetzen] [Messung starten] [Speichern]
-
-Geführte Messung (Peak-to-Peak):
-  Dialog führt achsenweise durch: ans Minimum, dann ans Maximum.
-  Jede Achse wird abgehakt sobald beide Extremwerte sicher erreicht wurden.
+  3. Mess-Panel    – eingeblendet während Achsenmessung (festes Panel, kein Popup)
+  4. Aktionsleiste – [Peaks zurücksetzen] [Messung starten] [Speichern]
 """
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -34,31 +29,30 @@ from ..noise import NoiseTracker
 from .. import i18n
 from .widgets import AxesPanel
 
-_PEAK_MARGIN_PCT = 0.03   # 3 % vom Achsbereich gilt als "Anschlag erreicht"
-_PEAK_CONFIRM    = 5       # Samples in Folge nötig zur Bestätigung
-SAMPLE_INTERVAL_MS = 33    # ~30 Hz
+_PEAK_MARGIN_PCT = 0.03
+_PEAK_CONFIRM    = 5
+SAMPLE_INTERVAL_MS = 33
 
 
 # ---------------------------------------------------------------------------
-# Geführter Peak-Dialog
+# Festes Mess-Panel (ersetzt den früheren Dialog)
 # ---------------------------------------------------------------------------
 
-class _PeakDialog(QDialog):
-    """Führt den Nutzer durch die Achsen-Extremwert-Messung."""
+class _PeakPanel(QWidget):
+    """Eingebettetes Panel für die geführte Achsenmessung.
 
-    finished = pyqtSignal(dict)
+    Wird in Calib2Tab unterhalb der Tabelle platziert und per
+    show()/hide() ein- und ausgeblendet.
+    Emittiert `finished` mit den Messergebnissen wenn alle Achsen
+    abgeschlossen oder abgebrochen wurden.
+    """
 
-    def __init__(
-        self,
-        axes: list[Axis],
-        trackers: dict[int, NoiseTracker],
-        parent: QWidget | None = None,
-    ) -> None:
+    finished = pyqtSignal(dict)   # dict[code → (peak_min, peak_max)]
+
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle(i18n.t("calib2.peak_dlg_title"))
-        self.setMinimumWidth(480)
-        self.axes = [ax for ax in axes if not ax.is_digital]
-        self.trackers = trackers
+        self.axes: list[Axis] = []
+        self.trackers: dict[int, NoiseTracker] = {}
         self._results: dict[int, tuple[int, int]] = {}
         self._idx = 0
         self._phase = "min"
@@ -68,46 +62,72 @@ class _PeakDialog(QDialog):
         self._timer = QTimer(self)
         self._timer.setInterval(SAMPLE_INTERVAL_MS)
         self._timer.timeout.connect(self._poll)
-        self._timer.start()
-        self._update_instruction()
 
     def _build(self) -> None:
+        box = QGroupBox(i18n.t("calib2.peak_dlg_title"))
+        box_layout = QVBoxLayout(box)
+
         self.instruction = QLabel()
         self.instruction.setWordWrap(True)
-        self.instruction.setStyleSheet("font-weight: 600; font-size: 13px;")
-
+        self.instruction.setStyleSheet("font-weight: 600;")
         self.sub = QLabel()
         self.sub.setWordWrap(True)
+        box_layout.addWidget(self.instruction)
+        box_layout.addWidget(self.sub)
 
+        # Checkliste
+        self.checklist_layout = QVBoxLayout()
         self.rows: list[tuple[QLabel, QLabel]] = []
-        checklist_box = QGroupBox(i18n.t("calib2.peak_dlg_checklist"))
-        cl_layout = QVBoxLayout(checklist_box)
+        box_layout.addLayout(self.checklist_layout)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        self.btn_skip  = QPushButton(i18n.t("calib2.peak_btn_skip"))
+        self.btn_abort = QPushButton(i18n.t("calib2.peak_btn_abort"))
+        self.btn_skip.clicked.connect(self._skip_axis)
+        self.btn_abort.clicked.connect(self._abort)
+        btn_row.addWidget(self.btn_skip)
+        btn_row.addWidget(self.btn_abort)
+        btn_row.addStretch(1)
+        box_layout.addLayout(btn_row)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(box)
+
+    def start(self, axes: list[Axis], trackers: dict[int, NoiseTracker]) -> None:
+        """Startet eine neue Messung."""
+        self.axes     = [ax for ax in axes if not ax.is_digital]
+        self.trackers = trackers
+        self._results = {}
+        self._idx     = 0
+        self._phase   = "min"
+        self._confirm_count = 0
+
+        # Checkliste neu aufbauen
+        while self.checklist_layout.count():
+            item = self.checklist_layout.takeAt(0)
+            if item.layout():
+                while item.layout().count():
+                    w = item.layout().takeAt(0).widget()
+                    if w:
+                        w.deleteLater()
+        self.rows.clear()
+
         for axis in self.axes:
             row = QHBoxLayout()
-            name = QLabel(axis.label)
+            name   = QLabel(axis.label)
             status = QLabel(i18n.t("calib2.peak_status_pending"))
             status.setAlignment(Qt.AlignmentFlag.AlignRight)
             row.addWidget(name)
             row.addStretch(1)
             row.addWidget(status)
-            cl_layout.addLayout(row)
+            self.checklist_layout.addLayout(row)
             self.rows.append((name, status))
 
-        buttons = QDialogButtonBox()
-        self.btn_skip = buttons.addButton(
-            i18n.t("calib2.peak_btn_skip"), QDialogButtonBox.ButtonRole.ActionRole
-        )
-        self.btn_abort = buttons.addButton(
-            i18n.t("calib2.peak_btn_abort"), QDialogButtonBox.ButtonRole.RejectRole
-        )
-        self.btn_skip.clicked.connect(self._skip_axis)
-        self.btn_abort.clicked.connect(self._abort)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.instruction)
-        layout.addWidget(self.sub)
-        layout.addWidget(checklist_box)
-        layout.addWidget(buttons)
+        self._update_instruction()
+        self._timer.start()
+        self.show()
 
     def _current_axis(self) -> Axis | None:
         if self._idx < len(self.axes):
@@ -118,8 +138,8 @@ class _PeakDialog(QDialog):
         axis = self._current_axis()
         if axis is None:
             return
-        total = len(self.axes)
         pos   = self._idx + 1
+        total = len(self.axes)
         if self._phase == "min":
             self.instruction.setText(
                 i18n.t("calib2.peak_instr_min", pos=pos, total=total, label=axis.label)
@@ -197,12 +217,13 @@ class _PeakDialog(QDialog):
 
     def _abort(self) -> None:
         self._timer.stop()
-        self.reject()
+        self.hide()
+        self.finished.emit({})
 
     def _finish(self) -> None:
         self._timer.stop()
+        self.hide()
         self.finished.emit(dict(self._results))
-        self.accept()
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +264,11 @@ class Calib2Tab(QWidget):
         )
         self._retranslate_table_headers()
 
+        # Festes Mess-Panel – standardmäßig ausgeblendet
+        self.peak_panel = _PeakPanel()
+        self.peak_panel.finished.connect(self._on_peak_done)
+        self.peak_panel.hide()
+
         self.status = QLabel()
         self.status.setWordWrap(True)
 
@@ -263,6 +289,7 @@ class Calib2Tab(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(axes_group)
         layout.addWidget(self.table, 1)
+        layout.addWidget(self.peak_panel)
         layout.addWidget(self.status)
         layout.addLayout(action_row)
 
@@ -283,6 +310,7 @@ class Calib2Tab(QWidget):
         self._peak_results.clear()
         self._pending.clear()
         self.table.setRowCount(0)
+        self.peak_panel.hide()
 
         for btn in (self.btn_reset_peaks, self.btn_measure, self.btn_save):
             btn.setEnabled(device is not None)
@@ -367,7 +395,6 @@ class Calib2Tab(QWidget):
                 self._pending.pop(axis.code, None)
         else:
             fuzz = tracker.suggested_fuzz()
-            # flat nur wenn Mittelpunkt aus Peak-Messung bekannt ist
             if axis.code in self._peak_results:
                 flat = tracker.suggested_flat()
                 self.table.item(row, 5).setText(
@@ -395,8 +422,6 @@ class Calib2Tab(QWidget):
                 hw = hardware_default(axis.code)
                 if hw is not None:
                     info = AbsInfo(*hw)
-                    # FREE_SLIDER: aktuellen Rohwert beibehalten,
-                    # nicht auf 0 zurücksetzen
                     if axis_kind(axis.code) == AxisKind.FREE_SLIDER:
                         current = state.axes.get(axis.code) if state else None
                         info.value = current if current is not None else axis.info.value
@@ -414,6 +439,7 @@ class Calib2Tab(QWidget):
             tracker.reset_peaks(current)
         self._peak_results.clear()
         self._pending.clear()
+        self.peak_panel.hide()
         self.btn_save.setEnabled(False)
         if self.device is not None:
             if self.device.writable:
@@ -425,13 +451,10 @@ class Calib2Tab(QWidget):
         if self.device is None:
             return
         self._reset_peaks()
-        dlg = _PeakDialog(
+        self.peak_panel.start(
             axes=list(self.device.axes),
             trackers=self._trackers,
-            parent=self,
         )
-        dlg.finished.connect(self._on_peak_done)
-        dlg.exec()
 
     def _on_peak_done(self, results: dict[int, tuple[int, int]]) -> None:
         self._peak_results = results
