@@ -136,6 +136,22 @@ class AxisBar(QWidget):
         painter.drawRoundedRect(bar_rect, 3, 3)
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
+
+        # Oranger Deadzone-Bereich um die Mitte (fuzz > 0)
+        info = self.axis.info
+        if info.fuzz > 0 and info.span > 0:
+            dead_colour = QColor(255, 140, 0, 120)
+            centre_frac = self._fraction(info.centre)
+            fuzz_frac   = info.fuzz / info.span
+            dead_left  = inner.left() + inner.width() * max(0.0, centre_frac - fuzz_frac)
+            dead_right = inner.left() + inner.width() * min(1.0, centre_frac + fuzz_frac)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(dead_colour)
+            painter.drawRect(QRect(
+                int(dead_left), inner.top(),
+                max(2, int(dead_right - dead_left)), inner.height()
+            ))
+
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(fill)
         start = self._fraction(self.axis.info.centre) if self.bipolar else 0.0
@@ -180,6 +196,23 @@ class AxisBar(QWidget):
         painter.drawRoundedRect(bar_rect, 3, 3)
 
         inner = bar_rect.adjusted(1, 1, -1, -1)
+
+        # Oranger Deadzone-Bereich um die Mitte (fuzz > 0)
+        info = self.axis.info
+        if info.fuzz > 0 and info.span > 0:
+            dead_colour = QColor(255, 140, 0, 120)
+            centre_frac = self._fraction(info.centre)
+            fuzz_frac   = info.fuzz / info.span
+            # Vertikal: 0 = unten, 1 = oben
+            dead_top    = inner.top() + inner.height() * max(0.0, 1.0 - centre_frac - fuzz_frac)
+            dead_bottom = inner.top() + inner.height() * min(1.0, 1.0 - centre_frac + fuzz_frac)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(dead_colour)
+            painter.drawRect(QRect(
+                inner.left(), int(dead_top),
+                inner.width(), max(2, int(dead_bottom - dead_top))
+            ))
+
         start = self._fraction(self.axis.info.centre) if self.bipolar else 0.0
         end = self._fraction(self.value)
         # Fraktion 0 = unten, 1 = oben (Hebel-Metapher: nach oben = mehr).
@@ -269,6 +302,18 @@ class Position2DWidget(QWidget):
         mid_x, mid_y = square.center().x(), square.center().y()
         painter.drawLine(mid_x - 6, mid_y, mid_x + 6, mid_y)
         painter.drawLine(mid_x, mid_y - 6, mid_x, mid_y + 6)
+
+        # Oranger Deadzone-Kreis (fuzz beider Achsen > 0)
+        fuzz_x = self.x_axis.info.fuzz
+        fuzz_y = self.y_axis.info.fuzz
+        if (fuzz_x > 0 or fuzz_y > 0) and self.x_axis.info.span > 0 and self.y_axis.info.span > 0:
+            dead_colour = QColor(255, 140, 0, 80)
+            rx = int(square.width()  * fuzz_x / self.x_axis.info.span)
+            ry = int(square.height() * fuzz_y / self.y_axis.info.span)
+            r_dead = max(rx, ry, 3)
+            painter.setPen(QPen(QColor(255, 140, 0, 180), 1))
+            painter.setBrush(dead_colour)
+            painter.drawEllipse(int(mid_x - r_dead), int(mid_y - r_dead), r_dead * 2, r_dead * 2)
 
         # Aktuelle Position
         painter.setPen(Qt.PenStyle.NoPen)
