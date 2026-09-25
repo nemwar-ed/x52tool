@@ -105,8 +105,12 @@ class LiveTab(QWidget):
         self.bars = self.axes_panel.bars
         self.position_widgets = self.axes_panel.position_widgets
 
+        axes_box = QGroupBox(i18n.t("live.group_axes"))
+        axes_box_layout = QVBoxLayout(axes_box)
+        axes_box_layout.addWidget(self.axes_panel)
+
         top_row = QHBoxLayout()
-        top_row.addWidget(self.axes_panel, 3)
+        top_row.addWidget(axes_box, 3)
         ministick_box = self._build_ministick_box(by_code, used_codes)
         if ministick_box is not None:
             top_row.addWidget(ministick_box, 1)
