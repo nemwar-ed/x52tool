@@ -22,15 +22,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__
+from .. import __version__, i18n
 from ..config import Settings
 from ..device import DeviceState, X52Device, find_related_nodes, scan
 from .analysis_tab import AnalysisTab
 from .calib_tab import CalibrationTab
 from .live_tab import LiveTab
 from .output_tab import OutputTab
+from .settings_tab import SettingsTab
 
-UI_REFRESH_MS = 33  # ~30 Hz reicht fuer das Auge und spart Strom
+UI_REFRESH_MS = 33  # ~30 Hz
 
 
 class DeviceTab(QWidget):
@@ -39,7 +40,6 @@ class DeviceTab(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Eigenschaft", "Wert"])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(
@@ -51,9 +51,8 @@ class DeviceTab(QWidget):
         self.table.verticalHeader().setDefaultSectionSize(24)
         self.table.setMinimumHeight(360)
 
-        self.tree_label = QLabel("Event-Knoten desselben USB-Geraets")
+        self.tree_label = QLabel()
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Knoten", "Rolle", "Event-Typen"])
         self.tree.setRootIsDecorated(True)
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -69,7 +68,34 @@ class DeviceTab(QWidget):
         layout.addWidget(self.tree, 1)
         layout.addWidget(self.notes)
 
+        self._device: X52Device | None = None
+        self._denied: list[str] = []
+        self._errors: list[str] = []
+        self._retranslate_headers()
+
+    def _retranslate_headers(self) -> None:
+        self.table.setHorizontalHeaderLabels([
+            i18n.t("device.col_property"),
+            i18n.t("device.col_value"),
+        ])
+        self.tree_label.setText(i18n.t("device.tree_label"))
+        self.tree.setHeaderLabels([
+            i18n.t("device.tree_col_node"),
+            i18n.t("device.tree_col_role"),
+            i18n.t("device.tree_col_evtypes"),
+        ])
+
     def show_device(self, device: X52Device | None, denied: list[str], errors: list[str] | None = None) -> None:
+        self._device = device
+        self._denied = denied
+        self._errors = errors or []
+        self._render()
+
+    def _render(self) -> None:
+        device = self._device
+        denied = self._denied
+        errors = self._errors
+
         rows = device.describe() if device else []
         self.table.setRowCount(len(rows))
         for row, (key, value) in enumerate(rows):
@@ -79,10 +105,7 @@ class DeviceTab(QWidget):
         self.tree.clear()
         notes: list[str] = []
         if device is None:
-            notes.append(
-                "Kein joystickartiges Eingabegeraet gefunden. Steckt der Stick, "
-                "und zeigt `lsusb` ihn an?"
-            )
+            notes.append(i18n.t("device.note_no_device"))
             self.tree_label.setVisible(False)
             self.tree.setVisible(False)
         else:
@@ -96,7 +119,7 @@ class DeviceTab(QWidget):
             self.tree.addTopLevelItem(root)
 
             used = QTreeWidgetItem(
-                [device.path, "Joystick-Achsen (verwendet)", "EV_ABS, EV_KEY"]
+                [device.path, i18n.t("device.tree_used_label"), "EV_ABS, EV_KEY"]
             )
             root.addChild(used)
 
@@ -106,50 +129,28 @@ class DeviceTab(QWidget):
                 related = []
             for node in related:
                 root.addChild(QTreeWidgetItem([node.path, node.role, node.ev_types]))
-
             self.tree.expandAll()
 
-            if related:
-                notes.append(
-                    "Derselbe Stick meldet mehrere Event-Knoten - oben aufgeklappt. "
-                    "Nur der als 'verwendet' markierte liefert die Achsen und Tasten "
-                    "in diesem Programm; die anderen (z.B. eine Maus-Emulation fuer "
-                    "den Ministick) werden hier nicht ausgewertet."
-                )
-            else:
-                notes.append(
-                    "Kein weiterer Event-Knoten mit derselben USB-ID gefunden - "
-                    "entweder meldet der Stick nur einen, oder ein zusaetzlicher "
-                    "Knoten liegt ohne Leserecht vor (siehe unten)."
-                )
-
+            notes.append(i18n.t("device.note_multi_node") if related else i18n.t("device.note_single_node"))
             if not device.known_name:
-                notes.append(
-                    "Die USB-ID steht nicht in der bekannten Liste. Das Werkzeug "
-                    "funktioniert trotzdem, nur LED und MFD bleiben aus."
-                )
+                notes.append(i18n.t("device.note_unknown_id"))
             if not device.writable:
-                notes.append(
-                    f"Auf {device.path} besteht nur Leserecht. Kalibrieren braucht "
-                    "Schreibrecht - im Reiter Kalibrierung gibt es dafuer eine "
-                    "fertige udev-Regel."
-                )
+                notes.append(i18n.t("device.note_readonly", path=device.path))
+
         if denied:
-            notes.append(
-                "Ohne Leserecht uebersprungen: " + ", ".join(denied)
-            )
+            notes.append(i18n.t("device.note_denied", paths=", ".join(denied)))
         if errors:
-            notes.append(
-                "Fehler beim Oeffnen (weder Rechte- noch Formatproblem, siehe Text):\n"
-                + "\n".join(errors)
-            )
+            notes.append(i18n.t("device.note_errors", errors="\n".join(errors)))
         self.notes.setText("\n\n".join(notes))
+
+    def retranslate(self) -> None:
+        self._retranslate_headers()
+        self._render()
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(f"x52tool {__version__}")
         self.resize(1000, 720)
 
         self.settings = Settings.load()
@@ -162,29 +163,33 @@ class MainWindow(QMainWindow):
         self.picker = QComboBox()
         self.picker.setMinimumWidth(420)
         self.picker.currentIndexChanged.connect(self._on_pick)
-        self.btn_rescan = QPushButton("Neu suchen")
+        self.btn_rescan = QPushButton()
         self.btn_rescan.clicked.connect(self.rescan)
+        self.label_device = QLabel()
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("Geraet"))
+        top.addWidget(self.label_device)
         top.addWidget(self.picker, 1)
         top.addWidget(self.btn_rescan)
 
-        self.tab_device = DeviceTab()
-        self.tab_live = LiveTab()
+        self.tab_device   = DeviceTab()
+        self.tab_live     = LiveTab()
         self.tab_analysis = AnalysisTab()
-        self.tab_calib = CalibrationTab(self.settings)
-        self.tab_output = OutputTab(self.settings)
+        self.tab_calib    = CalibrationTab(self.settings)
+        self.tab_output   = OutputTab(self.settings)
+        self.tab_settings = SettingsTab()
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.tab_device, "Geraet")
-        self.tabs.addTab(self.tab_live, "Live-Test")
-        self.tabs.addTab(self.tab_analysis, "Analyse")
-        self.tabs.addTab(self.tab_calib, "Kalibrierung")
-        self.tabs.addTab(self.tab_output, "LED / MFD")
+        self.tabs.addTab(self.tab_device,   "")
+        self.tabs.addTab(self.tab_live,     "")
+        self.tabs.addTab(self.tab_analysis, "")
+        self.tabs.addTab(self.tab_calib,    "")
+        self.tabs.addTab(self.tab_output,   "")
+        self.tabs.addTab(self.tab_settings, "")
 
         self.tab_analysis.suggestionsReady.connect(self._on_suggestions)
         self.tab_calib.calibrationChanged.connect(self.tab_live.refresh_calibration)
+        self.tab_settings.languageChanged.connect(self._on_language_changed)
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -198,7 +203,50 @@ class MainWindow(QMainWindow):
         self.timer.start()
 
         self._candidates: list[X52Device] = []
+        self._retranslate_own()
         self.rescan()
+
+    # -- Sprache -----------------------------------------------------------
+
+    def _on_language_changed(self, lang: str) -> None:
+        i18n.init(lang)
+        self.settings.language = lang
+        try:
+            self.settings.save()
+        except OSError:
+            pass
+        self._retranslate_all()
+
+    def _retranslate_own(self) -> None:
+        """Eigene Widgets des MainWindow neu beschriften."""
+        self.setWindowTitle(i18n.t("main.window_title", version=__version__))
+        self.label_device.setText(i18n.t("main.label_device"))
+        self.btn_rescan.setText(i18n.t("main.btn_rescan"))
+        self.tabs.setTabText(0, i18n.t("main.tab_device"))
+        self.tabs.setTabText(1, i18n.t("main.tab_live"))
+        self.tabs.setTabText(2, i18n.t("main.tab_analysis"))
+        self.tabs.setTabText(3, i18n.t("main.tab_calib"))
+        self.tabs.setTabText(4, i18n.t("main.tab_output"))
+        self.tabs.setTabText(5, i18n.t("settings.tab_label"))
+        # Statusbar
+        if self.device is None:
+            self.statusBar().showMessage(i18n.t("main.status_no_device"))
+        else:
+            self.statusBar().showMessage(
+                i18n.t("main.status_device",
+                       name=self.device.name,
+                       axes=len(self.device.axes),
+                       buttons=len(self.device.buttons))
+            )
+
+    def _retranslate_all(self) -> None:
+        self._retranslate_own()
+        self.tab_device.retranslate()
+        self.tab_live.retranslate()
+        self.tab_calib.retranslate()
+        self.tab_analysis.retranslate()
+        self.tab_output.retranslate()
+        self.tab_settings.retranslate()
 
     # -- Geraeteverwaltung -------------------------------------------------
 
@@ -251,10 +299,13 @@ class MainWindow(QMainWindow):
         self.tab_calib.set_device(device)
 
         if device is None:
-            self.statusBar().showMessage("Kein Geraet")
+            self.statusBar().showMessage(i18n.t("main.status_no_device"))
         else:
             self.statusBar().showMessage(
-                f"{device.name} - {len(device.axes)} Achsen, {len(device.buttons)} Tasten"
+                i18n.t("main.status_device",
+                       name=device.name,
+                       axes=len(device.axes),
+                       buttons=len(device.buttons))
             )
 
     def _detach(self) -> None:

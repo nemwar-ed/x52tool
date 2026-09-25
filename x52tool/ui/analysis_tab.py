@@ -21,33 +21,34 @@ from PyQt6.QtWidgets import (
 
 from ..analysis import AxisMeasurement, Recorder, guided_axis_queue
 from ..device import AbsInfo, Axis, X52Device
+from .. import i18n
 
 SAMPLE_INTERVAL_MS = 10  # 100 Hz
 
-REST_COLUMNS = [
-    "Achse",
-    "Mittenversatz",
-    "Rauschen (Spitze-Spitze)",
-    "Standardabw.",
-    "Aktuell (Deadzone / Fuzz)",
-    "Vorschlag",
-]
-RANGE_COLUMNS = [
-    "Achse",
-    "Erreicht min",
-    "Erreicht max",
-    "Kernel-Bereich",
-    "Abdeckung",
-    "Bewertung",
-]
 
-ALL_AXES_ITEM = "Alle Achsen (der Reihe nach)"
+def _rest_columns() -> list[str]:
+    return [
+        i18n.t("analysis.rest_col_axis"),
+        i18n.t("analysis.rest_col_offset"),
+        i18n.t("analysis.rest_col_noise"),
+        i18n.t("analysis.rest_col_stddev"),
+        i18n.t("analysis.rest_col_current"),
+        i18n.t("analysis.rest_col_suggestion"),
+    ]
+
+
+def _range_columns() -> list[str]:
+    return [
+        i18n.t("analysis.range_col_axis"),
+        i18n.t("analysis.range_col_min"),
+        i18n.t("analysis.range_col_max"),
+        i18n.t("analysis.range_col_kernel"),
+        i18n.t("analysis.range_col_coverage"),
+        i18n.t("analysis.range_col_verdict"),
+    ]
 
 
 class AnalysisTab(QWidget):
-    # {abs_code: {"flat": N}} oder {abs_code: {"fuzz": N}} - je nachdem, ob
-    # die Achse eine verlaessliche Mitte hat (siehe AxisMeasurement.
-    # has_reliable_center). Nie beides fuer dieselbe Achse.
     suggestionsReady = pyqtSignal(dict)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -59,7 +60,6 @@ class AnalysisTab(QWidget):
         self._fuzz_backup: dict[int, AbsInfo] = {}
         self._ticks_left = 0
 
-        # -- Zustand der gefuehrten Messung ---------------------------------
         self._guided = False
         self._guided_axes: list[Axis] = []
         self._guided_pos = 0
@@ -79,21 +79,7 @@ class AnalysisTab(QWidget):
     # -- Aufbau ------------------------------------------------------------
 
     def _build(self) -> None:
-        self.explain = QLabel(
-            "Ruhemessung: Haende weg, nichts anfassen. Fuer Stick und Twist "
-            "(echte Federrueckstellung) ein Deadzone-Vorschlag um die Mitte. "
-            "Fuer Schubhebel, Schieberegler und Rotary 1/2 (keine "
-            "Federrueckstellung, teils auch keine feste Mitte) stattdessen "
-            "ein Fuzz-Vorschlag - der wirkt unabhaengig von der Position.\n"
-            "Bereichsmessung: jede Achse einmal langsam von Anschlag zu Anschlag. "
-            "Zeigt, ob die Potis den vollen Bereich noch erreichen.\n\n"
-            "Deadzone (auch \"flat\" genannt): ein Fenster um die Achsenmitte, "
-            "in dem kleine Bewegungen ignoriert werden. Nur sinnvoll bei "
-            "Achsen, die von selbst zur Mitte zurueckfedern.\n"
-            "Fuzz: der Kernel ignoriert jede Wertaenderung, die kleiner ist "
-            "als dieser Betrag - ein reiner Rauschfilter, unabhaengig davon, "
-            "wo die Achse gerade steht."
-        )
+        self.explain = QLabel(i18n.t("analysis.explain"))
         self.explain.setWordWrap(True)
 
         self.seconds = QSpinBox()
@@ -101,19 +87,15 @@ class AnalysisTab(QWidget):
         self.seconds.setValue(10)
         self.seconds.setSuffix(" s")
 
-        self.zero_fuzz = QCheckBox("fuzz waehrend der Messung auf 0 setzen")
+        self.zero_fuzz = QCheckBox(i18n.t("analysis.checkbox_zero_fuzz"))
         self.zero_fuzz.setChecked(True)
-        self.zero_fuzz.setToolTip(
-            "Der Kernel unterdrueckt Aenderungen kleiner als fuzz. Ohne diesen "
-            "Schritt misst man das Filter statt der Hardware. Wird danach "
-            "wiederhergestellt."
-        )
+        self.zero_fuzz.setToolTip(i18n.t("analysis.tooltip_zero_fuzz"))
 
-        self.btn_rest = QPushButton("Ruhemessung starten")
-        self.btn_range = QPushButton("Bereichsmessung starten")
-        self.btn_stop = QPushButton("Abbrechen")
+        self.btn_rest  = QPushButton(i18n.t("analysis.btn_rest"))
+        self.btn_range = QPushButton(i18n.t("analysis.btn_range"))
+        self.btn_stop  = QPushButton(i18n.t("analysis.btn_stop"))
         self.btn_stop.setEnabled(False)
-        self.btn_apply = QPushButton("Vorschlaege in Kalibrierung uebernehmen")
+        self.btn_apply = QPushButton(i18n.t("analysis.btn_apply"))
         self.btn_apply.setEnabled(False)
 
         self.btn_rest.clicked.connect(lambda: self._start("rest"))
@@ -121,8 +103,9 @@ class AnalysisTab(QWidget):
         self.btn_stop.clicked.connect(self._stop)
         self.btn_apply.clicked.connect(self._emit_suggestions)
 
+        self.label_duration = QLabel(i18n.t("analysis.label_duration"))
         controls = QHBoxLayout()
-        controls.addWidget(QLabel("Dauer"))
+        controls.addWidget(self.label_duration)
         controls.addWidget(self.seconds)
         controls.addWidget(self.zero_fuzz)
         controls.addStretch(1)
@@ -136,16 +119,14 @@ class AnalysisTab(QWidget):
         self.progress.setTextVisible(True)
         self.progress.setValue(0)
 
-        self.table = QTableWidget(0, len(REST_COLUMNS))
-        self.table.setHorizontalHeaderLabels(REST_COLUMNS)
+        self.table = QTableWidget(0, len(_rest_columns()))
+        self.table.setHorizontalHeaderLabels(_rest_columns())
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 
         bottom_row = QHBoxLayout()
-        self.btn_toggle_view = QPushButton("Bereichsmessung anzeigen")
+        self.btn_toggle_view = QPushButton(i18n.t("analysis.btn_toggle_show_range"))
         self.btn_toggle_view.setVisible(False)
         self.btn_toggle_view.clicked.connect(self._toggle_guided_view)
         bottom_row.addWidget(self.btn_toggle_view)
@@ -161,23 +142,19 @@ class AnalysisTab(QWidget):
         layout.addLayout(bottom_row)
 
     def _build_guided_box(self) -> QGroupBox:
-        box = QGroupBox("Gefuehrte Messung (eine Achse nach der anderen)")
-        layout = QVBoxLayout(box)
+        self.guided_group = QGroupBox(i18n.t("analysis.group_guided"))
+        layout = QVBoxLayout(self.guided_group)
 
-        explain = QLabel(
-            "Statt alle Achsen gleichzeitig durcheinanderzubewegen: eine "
-            "Achse auswaehlen (oder alle der Reihe nach), das Tool fuehrt "
-            "dich durch Ruhe- und Bereichsmessung fuer jede einzeln."
-        )
-        explain.setWordWrap(True)
-        layout.addWidget(explain)
+        self.guided_explain_label = QLabel(i18n.t("analysis.guided_explain"))
+        self.guided_explain_label.setWordWrap(True)
+        layout.addWidget(self.guided_explain_label)
 
         row = QHBoxLayout()
         self.axis_picker = QComboBox()
-        self.axis_picker.addItem(ALL_AXES_ITEM, None)
-        self.btn_guided_start = QPushButton("Gefuehrt starten")
+        self.axis_picker.addItem(i18n.t("analysis.all_axes_item"), None)
+        self.btn_guided_start = QPushButton(i18n.t("analysis.btn_guided_start"))
         self.btn_guided_start.clicked.connect(self._start_guided)
-        row.addWidget(QLabel("Achse"))
+        row.addWidget(QLabel(i18n.t("analysis.label_axis")))
         row.addWidget(self.axis_picker, 1)
         row.addWidget(self.btn_guided_start)
         layout.addLayout(row)
@@ -187,7 +164,7 @@ class AnalysisTab(QWidget):
         self.guided_instruction.setStyleSheet("font-weight: 600;")
         layout.addWidget(self.guided_instruction)
 
-        return box
+        return self.guided_group
 
     # -- Geraet ------------------------------------------------------------
 
@@ -203,12 +180,12 @@ class AnalysisTab(QWidget):
             btn.setEnabled(device is not None)
 
         self.axis_picker.clear()
-        self.axis_picker.addItem(ALL_AXES_ITEM, None)
+        self.axis_picker.addItem(i18n.t("analysis.all_axes_item"), None)
         if device is not None:
             for axis in guided_axis_queue(device.axes):
                 self.axis_picker.addItem(axis.label, axis.code)
 
-    # -- Manuelle Messung (alle Achsen gleichzeitig) ------------------------
+    # -- Manuelle Messung --------------------------------------------------
 
     def _start(self, mode: str, codes: list[int] | None = None) -> None:
         if self.device is None:
@@ -275,7 +252,7 @@ class AnalysisTab(QWidget):
         self.axis_picker.setEnabled(True)
         if self._guided:
             self._guided = False
-            self.guided_instruction.setText("Abgebrochen.")
+            self.guided_instruction.setText(i18n.t("analysis.guided_aborted"))
 
     def _finish(self) -> None:
         self.timer.stop()
@@ -298,7 +275,7 @@ class AnalysisTab(QWidget):
         else:
             self._show_range(results)
 
-    # -- Gefuehrte Messung ---------------------------------------------------
+    # -- Gefuehrte Messung -------------------------------------------------
 
     def _start_guided(self) -> None:
         if self.device is None:
@@ -321,8 +298,8 @@ class AnalysisTab(QWidget):
         total = len(self._guided_axes)
         self._guided_phase = "rest"
         self.guided_instruction.setText(
-            f"Achse {self._guided_pos + 1} von {total}: {axis.label}\n"
-            "Jetzt loslassen, nichts anfassen - Ruhemessung laeuft."
+            i18n.t("analysis.guided_instruction_rest",
+                   pos=self._guided_pos + 1, total=total, label=axis.label)
         )
         self._start("rest", codes=[axis.code])
 
@@ -334,13 +311,12 @@ class AnalysisTab(QWidget):
             if results:
                 self._guided_rest[axis.code] = results[0]
             self.guided_instruction.setText(
-                f"Achse {self._guided_pos + 1} von {total}: {axis.label}\n"
-                "Jetzt einmal LANGSAM von Anschlag zu Anschlag bewegen."
+                i18n.t("analysis.guided_instruction_range",
+                       pos=self._guided_pos + 1, total=total, label=axis.label)
             )
             self._start("range", codes=[axis.code])
             return
 
-        # mode == "range": diese Achse ist fertig, weiter zur naechsten.
         if results:
             self._guided_range[axis.code] = results[0]
         self._guided_pos += 1
@@ -357,26 +333,26 @@ class AnalysisTab(QWidget):
         self.btn_guided_start.setEnabled(True)
         self.axis_picker.setEnabled(True)
         self.guided_instruction.setText(
-            f"Gefuehrte Messung abgeschlossen ({len(self._guided_axes)} Achse(n))."
+            i18n.t("analysis.guided_done", count=len(self._guided_axes))
         )
 
-        rest_results = list(self._guided_rest.values())
+        rest_results  = list(self._guided_rest.values())
         range_results = list(self._guided_range.values())
-        self._last_guided_rest = rest_results
+        self._last_guided_rest  = rest_results
         self._last_guided_range = range_results
         self._showing_guided_range = False
 
         self._show_rest(rest_results)
-        self.btn_toggle_view.setText("Bereichsmessung anzeigen")
+        self.btn_toggle_view.setText(i18n.t("analysis.btn_toggle_show_range"))
         self.btn_toggle_view.setVisible(bool(range_results))
 
     def _toggle_guided_view(self) -> None:
         if self._showing_guided_range:
             self._show_rest(self._last_guided_rest)
-            self.btn_toggle_view.setText("Bereichsmessung anzeigen")
+            self.btn_toggle_view.setText(i18n.t("analysis.btn_toggle_show_range"))
         else:
             self._show_range(self._last_guided_range)
-            self.btn_toggle_view.setText("Ruhemessung anzeigen")
+            self.btn_toggle_view.setText(i18n.t("analysis.btn_toggle_show_rest"))
         self._showing_guided_range = not self._showing_guided_range
 
     # -- Darstellung -------------------------------------------------------
@@ -396,21 +372,15 @@ class AnalysisTab(QWidget):
         return item
 
     def _show_rest(self, results: list[AxisMeasurement]) -> None:
-        self._prepare_table(REST_COLUMNS, len(results))
-        header_deadzone_fuzz = self.table.horizontalHeaderItem(4)
-        if header_deadzone_fuzz is not None:
-            header_deadzone_fuzz.setToolTip(
-                "Deadzone/flat: Fenster um die Mitte, in dem Bewegungen ignoriert "
-                "werden - nur sinnvoll bei Achsen mit Federrueckstellung.\n"
-                "Fuzz: ignoriert jede Wertaenderung unterhalb dieses Betrags, "
-                "egal wo die Achse steht - ein reiner Rauschfilter."
-            )
-        header_suggestion = self.table.horizontalHeaderItem(5)
-        if header_suggestion is not None:
-            header_suggestion.setToolTip(
-                "Bei Achsen mit fester Mitte: Deadzone-Vorschlag.\n"
-                "Bei allen anderen: Fuzz-Vorschlag (siehe Spalte links)."
-            )
+        cols = _rest_columns()
+        self._prepare_table(cols, len(results))
+        h4 = self.table.horizontalHeaderItem(4)
+        if h4:
+            h4.setToolTip(i18n.t("analysis.rest_tooltip_current"))
+        h5 = self.table.horizontalHeaderItem(5)
+        if h5:
+            h5.setToolTip(i18n.t("analysis.rest_tooltip_suggestion"))
+
         self._suggestions = {}
         for row, m in enumerate(results):
             noise_pct = m.percent(m.spread)
@@ -423,11 +393,7 @@ class AnalysisTab(QWidget):
                     self._cell(f"{m.centre_offset:+.0f}  ({drift_pct:+.2f} %)", abs(drift_pct) > 2.0),
                 )
             else:
-                # Keine Feder, die zur Mitte zurueckfuehrt - der Wert steht
-                # einfach da, wo die Achse zuletzt hingestellt wurde. Eine
-                # "Abweichung" davon anzuzeigen wuerde einen Defekt
-                # suggerieren, den es nicht gibt.
-                self.table.setItem(row, 1, self._cell("–  (keine feste Mitte)"))
+                self.table.setItem(row, 1, self._cell(i18n.t("analysis.rest_no_center")))
 
             self.table.setItem(
                 row, 2, self._cell(f"{m.spread}  ({noise_pct:.2f} %)", noise_pct > 1.0)
@@ -438,25 +404,29 @@ class AnalysisTab(QWidget):
             if m.has_reliable_center:
                 suggestion = m.suggested_flat
                 self._suggestions[m.code] = {"flat": suggestion}
-                self.table.setItem(row, 5, self._cell(f"{suggestion}  (Deadzone)"))
+                self.table.setItem(row, 5, self._cell(
+                    i18n.t("analysis.rest_suggestion_deadzone", value=suggestion)
+                ))
             else:
                 suggestion = m.suggested_fuzz
                 self._suggestions[m.code] = {"fuzz": suggestion}
-                self.table.setItem(row, 5, self._cell(f"{suggestion}  (Fuzz)"))
+                self.table.setItem(row, 5, self._cell(
+                    i18n.t("analysis.rest_suggestion_fuzz", value=suggestion)
+                ))
         self.btn_apply.setEnabled(bool(self._suggestions))
 
     def _show_range(self, results: list[AxisMeasurement]) -> None:
-        self._prepare_table(RANGE_COLUMNS, len(results))
+        self._prepare_table(_range_columns(), len(results))
         for row, m in enumerate(results):
             coverage = m.coverage
             if coverage >= 97:
-                verdict, warn = "voller Ausschlag", False
+                verdict, warn = i18n.t("analysis.range_verdict_full"), False
             elif coverage >= 90:
-                verdict, warn = "knapp, aber brauchbar", False
+                verdict, warn = i18n.t("analysis.range_verdict_ok"), False
             elif coverage >= 60:
-                verdict, warn = "erreicht die Anschlaege nicht", True
+                verdict, warn = i18n.t("analysis.range_verdict_low"), True
             else:
-                verdict, warn = "kaum bewegt oder defekt", True
+                verdict, warn = i18n.t("analysis.range_verdict_bad"), True
             self.table.setItem(row, 0, self._cell(m.label))
             self.table.setItem(row, 1, self._cell(str(m.lowest)))
             self.table.setItem(row, 2, self._cell(str(m.highest)))
@@ -468,3 +438,32 @@ class AnalysisTab(QWidget):
     def _emit_suggestions(self) -> None:
         if self._suggestions:
             self.suggestionsReady.emit(dict(self._suggestions))
+
+    def retranslate(self) -> None:
+        """Beschriftungen nach Sprachwechsel aktualisieren. Laufende Messung bleibt."""
+        # Statische Labels
+        self.explain.setText(i18n.t("analysis.explain"))
+        self.zero_fuzz.setText(i18n.t("analysis.checkbox_zero_fuzz"))
+        self.zero_fuzz.setToolTip(i18n.t("analysis.tooltip_zero_fuzz"))
+        self.btn_rest.setText(i18n.t("analysis.btn_rest"))
+        self.btn_range.setText(i18n.t("analysis.btn_range"))
+        self.btn_stop.setText(i18n.t("analysis.btn_stop"))
+        self.btn_apply.setText(i18n.t("analysis.btn_apply"))
+        self.btn_guided_start.setText(i18n.t("analysis.btn_guided_start"))
+        # GroupBox-Titel der gefuehrten Messung
+        self.guided_group.setTitle(i18n.t("analysis.group_guided"))
+        self.guided_explain_label.setText(i18n.t("analysis.guided_explain"))
+        self.label_duration.setText(i18n.t("analysis.label_duration"))
+        # Achsen-Picker: ersten Eintrag (Alle) neu beschriften
+        if self.axis_picker.count() > 0:
+            self.axis_picker.setItemText(0, i18n.t("analysis.all_axes_item"))
+        # Toggle-Button
+        if self._showing_guided_range:
+            self.btn_toggle_view.setText(i18n.t("analysis.btn_toggle_show_rest"))
+        else:
+            self.btn_toggle_view.setText(i18n.t("analysis.btn_toggle_show_range"))
+        # Tabellenspalten neu setzen
+        if self.mode == "rest":
+            self.table.setHorizontalHeaderLabels(_rest_columns())
+        else:
+            self.table.setHorizontalHeaderLabels(_range_columns())

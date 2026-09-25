@@ -84,8 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply:
         return _apply_profile(args.device)
 
+    from . import i18n
     from .ui import run  # Qt erst importieren, wenn es gebraucht wird
 
+    settings = Settings.load()
+    i18n.init(settings.language or None)
     return run()
 
 

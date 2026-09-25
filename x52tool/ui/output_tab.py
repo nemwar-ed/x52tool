@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..output import MFD_LINES, MFD_WIDTH, PRO_LEDS, Backend, CommandResult, detect_binary
+from .. import i18n
 
 
 class OutputTab(QWidget):
@@ -41,9 +42,13 @@ class OutputTab(QWidget):
 
     # -- Aufbau ------------------------------------------------------------
 
+    def _build_status(self) -> QLabel:
+        lbl = QLabel()
+        lbl.setWordWrap(True)
+        return lbl
+
     def _build(self) -> None:
-        self.status = QLabel()
-        self.status.setWordWrap(True)
+        self.status = self._build_status()
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.status)
@@ -54,9 +59,10 @@ class OutputTab(QWidget):
         layout.addWidget(self._build_log(), 1)
 
     def _build_leds(self) -> QGroupBox:
-        box = QGroupBox("LEDs")
+        box = QGroupBox(i18n.t("output.group_leds"))
         grid = QGridLayout(box)
-        for i, (key, label, states) in enumerate(PRO_LEDS):
+        leds = PRO_LEDS()
+        for i, (key, label, states) in enumerate(leds):
             combo = QComboBox()
             combo.addItems(states)
             combo.currentTextChanged.connect(
@@ -67,9 +73,9 @@ class OutputTab(QWidget):
             self._led_boxes[key] = combo
 
         row = QHBoxLayout()
-        btn_sweep = QPushButton("Alle LEDs durchtesten")
-        btn_on = QPushButton("Alle an")
-        btn_off = QPushButton("Alle aus")
+        btn_sweep = QPushButton(i18n.t("output.btn_sweep"))
+        btn_on    = QPushButton(i18n.t("output.btn_all_on"))
+        btn_off   = QPushButton(i18n.t("output.btn_all_off"))
         btn_sweep.clicked.connect(lambda: self._log_many(self.backend.led_sweep()))
         btn_on.clicked.connect(lambda: self._log_many(self.backend.all_leds("green")))
         btn_off.clicked.connect(lambda: self._log_many(self.backend.all_leds("off")))
@@ -84,18 +90,18 @@ class OutputTab(QWidget):
         bright.sliderReleased.connect(
             lambda: self._log_one(self.backend.set_brightness("led", bright.value()))
         )
-        row.addWidget(QLabel("Helligkeit"))
+        row.addWidget(QLabel(i18n.t("output.label_brightness")))
         row.addWidget(bright)
 
         wrapper = QVBoxLayout()
         wrapper.addLayout(row)
         holder = QWidget()
         holder.setLayout(wrapper)
-        grid.addWidget(holder, (len(PRO_LEDS) + 2) // 3, 0, 1, 6)
+        grid.addWidget(holder, (len(leds) + 2) // 3, 0, 1, 6)
         return box
 
     def _build_mfd(self) -> QGroupBox:
-        box = QGroupBox(f"MFD ({MFD_LINES} Zeilen zu {MFD_WIDTH} Zeichen)")
+        box = QGroupBox(i18n.t("output.group_mfd", lines=MFD_LINES, width=MFD_WIDTH))
         form = QFormLayout(box)
         for line in range(MFD_LINES):
             edit = QLineEdit()
@@ -103,12 +109,12 @@ class OutputTab(QWidget):
             edit.editingFinished.connect(
                 lambda l=line, e=edit: self._log_one(self.backend.set_mfd_line(l, e.text()))
             )
-            form.addRow(f"Zeile {line}", edit)
+            form.addRow(i18n.t("output.mfd_row_label", line=line), edit)
             self._mfd_edits.append(edit)
 
         row = QHBoxLayout()
-        btn_test = QPushButton("Testmuster senden")
-        btn_clear = QPushButton("MFD leeren")
+        btn_test  = QPushButton(i18n.t("output.btn_mfd_test"))
+        btn_clear = QPushButton(i18n.t("output.btn_mfd_clear"))
         btn_test.clicked.connect(lambda: self._log_many(self.backend.mfd_test()))
         btn_clear.clicked.connect(
             lambda: self._log_many(
@@ -123,26 +129,20 @@ class OutputTab(QWidget):
         )
         row.addWidget(btn_test)
         row.addWidget(btn_clear)
-        row.addWidget(QLabel("Helligkeit"))
+        row.addWidget(QLabel(i18n.t("output.label_brightness")))
         row.addWidget(bright)
         form.addRow(row)
         return box
 
     def _build_clutch(self) -> QGroupBox:
-        box = QGroupBox("Clutch (Taste 31, aufgedrucktes Symbol: ein \"i\" im Kreis)")
+        box = QGroupBox(i18n.t("output.group_clutch"))
         layout = QVBoxLayout(box)
 
-        explain = QLabel(
-            "Ist der Kupplungsmodus am Geraet aktiv, liest der Kernel-Treiber "
-            "(usbhid) diese Taste nicht als normalen Joystick-Button ein - "
-            "sie bleibt im Live-Test unsichtbar, obwohl sie physisch gedrueckt "
-            "wird. Hier laesst sich der Modus abschalten, sofern das "
-            "installierte libx52 das unterstuetzt."
-        )
+        explain = QLabel(i18n.t("output.clutch_explain"))
         explain.setWordWrap(True)
         layout.addWidget(explain)
 
-        self.clutch_checkbox = QCheckBox("Kupplungsmodus aktiv")
+        self.clutch_checkbox = QCheckBox(i18n.t("output.clutch_checkbox"))
         self.clutch_checkbox.toggled.connect(
             lambda checked: self._log_one(self.backend.set_clutch(checked))
         )
@@ -150,33 +150,29 @@ class OutputTab(QWidget):
         return box
 
     def _build_backend(self) -> QGroupBox:
-        box = QGroupBox("Aufruf des libx52-CLI")
+        box = QGroupBox(i18n.t("output.group_backend"))
         form = QFormLayout(box)
 
         cfg = self.settings.backend
         self.edit_binary = QLineEdit(cfg.binary)
-        self.edit_led = QLineEdit(cfg.led)
-        self.edit_mfd = QLineEdit(cfg.mfd)
-        self.edit_bri = QLineEdit(cfg.brightness)
+        self.edit_led    = QLineEdit(cfg.led)
+        self.edit_mfd    = QLineEdit(cfg.mfd)
+        self.edit_bri    = QLineEdit(cfg.brightness)
         self.edit_clutch = QLineEdit(cfg.clutch)
 
-        form.addRow("Programm", self.edit_binary)
-        form.addRow("LED", self.edit_led)
-        form.addRow("MFD", self.edit_mfd)
-        form.addRow("Helligkeit", self.edit_bri)
-        form.addRow("Clutch", self.edit_clutch)
+        form.addRow(i18n.t("output.backend_label_binary"), self.edit_binary)
+        form.addRow(i18n.t("output.backend_label_led"),    self.edit_led)
+        form.addRow(i18n.t("output.backend_label_mfd"),    self.edit_mfd)
+        form.addRow(i18n.t("output.backend_label_bri"),    self.edit_bri)
+        form.addRow(i18n.t("output.backend_label_clutch"), self.edit_clutch)
 
-        hint = QLabel(
-            "Platzhalter: {bin} {led} {state} {line} {text} {target} {value}. "
-            "Die Vorlage wird erst in Tokens zerlegt, dann eingesetzt - "
-            "MFD-Text mit Leerzeichen bleibt also ein Argument."
-        )
+        hint = QLabel(i18n.t("output.backend_hint"))
         hint.setWordWrap(True)
         form.addRow(hint)
 
         row = QHBoxLayout()
-        btn_detect = QPushButton("Programm suchen")
-        btn_save = QPushButton("Uebernehmen und speichern")
+        btn_detect = QPushButton(i18n.t("output.btn_detect"))
+        btn_save   = QPushButton(i18n.t("output.btn_save_backend"))
         btn_detect.clicked.connect(self._detect)
         btn_save.clicked.connect(self._save_backend)
         row.addWidget(btn_detect)
@@ -186,7 +182,7 @@ class OutputTab(QWidget):
         return box
 
     def _build_log(self) -> QGroupBox:
-        box = QGroupBox("Protokoll")
+        box = QGroupBox(i18n.t("output.group_log"))
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         font = self.log.font()
@@ -204,36 +200,27 @@ class OutputTab(QWidget):
             self.edit_binary.setText(found)
             self._save_backend()
         else:
-            self.log.appendPlainText(
-                "Kein x52ctl oder x52cli im PATH. libx52 installieren "
-                "(PPA, AUR oder aus dem Quelltext)."
-            )
+            self.log.appendPlainText(i18n.t("output.log_no_binary"))
 
     def _save_backend(self) -> None:
         cfg = self.settings.backend
-        cfg.binary = self.edit_binary.text().strip()
-        cfg.led = self.edit_led.text()
-        cfg.mfd = self.edit_mfd.text()
+        cfg.binary     = self.edit_binary.text().strip()
+        cfg.led        = self.edit_led.text()
+        cfg.mfd        = self.edit_mfd.text()
         cfg.brightness = self.edit_bri.text()
-        cfg.clutch = self.edit_clutch.text()
+        cfg.clutch     = self.edit_clutch.text()
         self.backend = Backend(cfg)
         path = self.settings.save()
-        self.log.appendPlainText(f"Einstellungen gespeichert in {path}")
+        self.log.appendPlainText(i18n.t("output.log_settings_saved", path=path))
         self._refresh_availability()
 
     def _refresh_availability(self) -> None:
         if self.backend.available:
             self.status.setText(
-                f"Ausgabe geht ueber {self.backend.config.binary}. "
-                "Laeuft der Daemon x52d, sollte hier dessen Client stehen - "
-                "zwei Prozesse gleichzeitig auf MFD und LEDs vertraegt das Geraet nicht."
+                i18n.t("output.status_available", binary=self.backend.config.binary)
             )
         else:
-            self.status.setText(
-                "Kein libx52-CLI gefunden. LEDs und MFD des X52 Pro laufen nicht "
-                "ueber evdev, sondern ueber USB-Control-Transfers - dafuer wird "
-                "libx52 gebraucht. Unten 'Programm suchen' oder den Pfad eintragen."
-            )
+            self.status.setText(i18n.t("output.status_unavailable"))
         enabled = self.backend.available
         for combo in self._led_boxes.values():
             combo.setEnabled(enabled)
@@ -251,5 +238,59 @@ class OutputTab(QWidget):
         for result in results:
             self.log.appendPlainText(result.summary())
         self.log.appendPlainText(
-            f"-- {len(results)} Befehle, {len(failures)} fehlgeschlagen"
+            i18n.t("output.log_summary", count=len(results), failures=len(failures))
         )
+
+    def retranslate(self) -> None:
+        """Beschriftungen nach Sprachwechsel aktualisieren."""
+        # Den ganzen Tab neu aufbauen ist hier am saubersten, da Gruppen-
+        # boxen und FormLayout-Labels keine einfachen setter haben.
+        # Zustand (Log, Backend-Felder) sichern und wiederherstellen.
+        binary = self.edit_binary.text()
+        led_t   = self.edit_led.text()
+        mfd_t   = self.edit_mfd.text()
+        bri_t   = self.edit_bri.text()
+        clutch_t = self.edit_clutch.text()
+        log_text = self.log.toPlainText()
+        clutch_checked = self.clutch_checkbox.isChecked()
+        led_states = {k: combo.currentText() for k, combo in self._led_boxes.items()}
+
+        # Widgets aus dem bestehenden Layout entfernen
+        layout = self.layout()
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.hide()
+                w.setParent(None)
+        self._led_boxes.clear()
+        self._mfd_edits.clear()
+
+        # Neu aufbauen (ohne neues Top-Level-Layout)
+        self.status = self._build_status()
+        layout.addWidget(self.status)
+        layout.addWidget(self._build_leds())
+        layout.addWidget(self._build_mfd())
+        layout.addWidget(self._build_clutch())
+        layout.addWidget(self._build_backend())
+        layout.addWidget(self._build_log(), 1)
+
+        # Zustand wiederherstellen
+        self.edit_binary.setText(binary)
+        self.edit_led.setText(led_t)
+        self.edit_mfd.setText(mfd_t)
+        self.edit_bri.setText(bri_t)
+        self.edit_clutch.setText(clutch_t)
+        self.log.setPlainText(log_text)
+        self.clutch_checkbox.blockSignals(True)
+        self.clutch_checkbox.setChecked(clutch_checked)
+        self.clutch_checkbox.blockSignals(False)
+        for k, state in led_states.items():
+            combo = self._led_boxes.get(k)
+            if combo:
+                combo.blockSignals(True)
+                idx = combo.findText(state)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+                combo.blockSignals(False)
+        self._refresh_availability()

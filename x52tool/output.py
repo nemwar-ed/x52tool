@@ -18,25 +18,32 @@ import subprocess
 from dataclasses import dataclass
 
 from .config import BackendConfig
+from . import i18n
 
 # Reihenfolge wie auf dem Geraet, oben nach unten.
 # Zweifarbige LEDs koennen rot/gelb/gruen, einfarbige nur an/aus.
 TRICOLOR = ("off", "red", "amber", "green")
 MONO = ("off", "on")
 
-PRO_LEDS: list[tuple[str, str, tuple[str, ...]]] = [
-    ("fire", "Fire (Abdeckung)", MONO),
-    ("a", "Taste A", TRICOLOR),
-    ("b", "Taste B", TRICOLOR),
-    ("d", "Taste D", TRICOLOR),
-    ("e", "Taste E", TRICOLOR),
-    ("t1", "Kippschalter T1/T2", TRICOLOR),
-    ("t2", "Kippschalter T3/T4", TRICOLOR),
-    ("t3", "Kippschalter T5/T6", TRICOLOR),
-    ("pov", "POV-Hat 2", TRICOLOR),
-    ("clutch", "Clutch (i-Taste)", TRICOLOR),
-    ("throttle", "Schubhebel", MONO),
+# (key, i18n-key, states) – Label wird zur Laufzeit per i18n.t() geholt.
+_PRO_LEDS_DEF: list[tuple[str, str, tuple[str, ...]]] = [
+    ("fire",     "output.led_fire",     MONO),
+    ("a",        "output.led_a",        TRICOLOR),
+    ("b",        "output.led_b",        TRICOLOR),
+    ("d",        "output.led_d",        TRICOLOR),
+    ("e",        "output.led_e",        TRICOLOR),
+    ("t1",       "output.led_t1",       TRICOLOR),
+    ("t2",       "output.led_t2",       TRICOLOR),
+    ("t3",       "output.led_t3",       TRICOLOR),
+    ("pov",      "output.led_pov",      TRICOLOR),
+    ("clutch",   "output.led_clutch",   TRICOLOR),
+    ("throttle", "output.led_throttle", MONO),
 ]
+
+
+def PRO_LEDS() -> list[tuple[str, str, tuple[str, ...]]]:
+    """Gibt die LED-Definitionen mit uebersetzten Labels zurueck."""
+    return [(key, i18n.t(label_key), states) for key, label_key, states in _PRO_LEDS_DEF]
 
 MFD_LINES = 3
 MFD_WIDTH = 16
@@ -150,7 +157,7 @@ class Backend:
     def led_sweep(self) -> list[CommandResult]:
         """Jede LED einmal durch alle Zustaende. Findet tote LEDs."""
         results: list[CommandResult] = []
-        for key, _label, states in PRO_LEDS:
+        for key, _label, states in PRO_LEDS():
             for state in states[1:]:
                 results.append(self.set_led(key, state))
             results.append(self.set_led(key, "off"))
@@ -158,7 +165,7 @@ class Backend:
 
     def all_leds(self, state: str) -> list[CommandResult]:
         results = []
-        for key, _label, states in PRO_LEDS:
+        for key, _label, states in PRO_LEDS():
             results.append(self.set_led(key, state if state in states else states[-1]))
         return results
 

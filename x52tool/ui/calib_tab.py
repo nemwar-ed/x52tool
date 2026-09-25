@@ -1,13 +1,4 @@
-"""Reiter 'Kalibrierung': Deadzone, Bereich und Fuzz schreiben.
-
-Schreibt ueber EVIOCSABS direkt in den Kernel. Das gilt nur bis zum
-naechsten Abziehen des Sticks - deshalb der Export als udev-Regel.
-
-Ob eine hier gesetzte Deadzone im Spiel ankommt, haengt am Konsumenten:
-ueber /dev/input/jsX wird `flat` angewendet, ueber /dev/input/eventN ist
-es fuer viele Clients nur eine Angabe. Wer unter Proton spielt, prueft
-das einmal mit einem absurd grossen Wert, bevor er sich darauf verlaesst.
-"""
+"""Reiter 'Kalibrierung': Deadzone, Bereich und Fuzz schreiben."""
 
 from __future__ import annotations
 
@@ -34,8 +25,18 @@ from ..analysis import (
     udev_rule_selfcall,
 )
 from ..device import AbsInfo, X52Device
+from .. import i18n
 
-COLUMNS = ["Achse", "Minimum", "Maximum", "Fuzz", "Deadzone (flat)", "Deadzone %"]
+
+def _columns() -> list[str]:
+    return [
+        i18n.t("calib.col_axis"),
+        i18n.t("calib.col_minimum"),
+        i18n.t("calib.col_maximum"),
+        i18n.t("calib.col_fuzz"),
+        i18n.t("calib.col_deadzone"),
+        i18n.t("calib.col_deadzone_pct"),
+    ]
 
 
 class TextDialog(QDialog):
@@ -72,31 +73,23 @@ class CalibrationTab(QWidget):
         self.status = QLabel()
         self.status.setWordWrap(True)
 
-        self.table = QTableWidget(0, len(COLUMNS))
-        self.table.setHorizontalHeaderLabels(COLUMNS)
-        self.table.horizontalHeaderItem(COLUMNS.index("Fuzz")).setToolTip(
-            "Fuzz: der Kernel ignoriert jede Wertaenderung, die kleiner ist "
-            "als dieser Betrag - unabhaengig davon, wo die Achse gerade "
-            "steht. Ein reiner Rauschfilter, wirkt ueberall."
-        )
-        self.table.horizontalHeaderItem(COLUMNS.index("Deadzone (flat)")).setToolTip(
-            "Deadzone (auch \"flat\" genannt): ein Fenster um die Achsenmitte "
-            "(Minimum+Maximum)/2, in dem Bewegungen ignoriert werden. Nur "
-            "sinnvoll bei Achsen, die von selbst zur Mitte zurueckfedern -"
-            "sonst kann das Fenster an der falschen Stelle liegen."
-        )
+        cols = _columns()
+        self.table = QTableWidget(0, len(cols))
+        self.table.setHorizontalHeaderLabels(cols)
+        self.table.horizontalHeaderItem(3).setToolTip(i18n.t("calib.tooltip_fuzz"))
+        self.table.horizontalHeaderItem(4).setToolTip(i18n.t("calib.tooltip_deadzone"))
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
 
-        self.btn_reload = QPushButton("Vom Geraet lesen")
-        self.btn_apply = QPushButton("Auf Geraet schreiben")
-        self.btn_reset = QPushButton("Auf Kernel-Standard zurueck")
-        self.btn_save = QPushButton("Als Profil speichern")
-        self.btn_load = QPushButton("Profil laden")
-        self.btn_udev = QPushButton("udev-Regel erzeugen")
-        self.btn_rights = QPushButton("Rechte-Regel erzeugen")
+        self.btn_reload = QPushButton(i18n.t("calib.btn_reload"))
+        self.btn_apply  = QPushButton(i18n.t("calib.btn_apply"))
+        self.btn_reset  = QPushButton(i18n.t("calib.btn_reset"))
+        self.btn_save   = QPushButton(i18n.t("calib.btn_save"))
+        self.btn_load   = QPushButton(i18n.t("calib.btn_load"))
+        self.btn_udev   = QPushButton(i18n.t("calib.btn_udev"))
+        self.btn_rights = QPushButton(i18n.t("calib.btn_rights"))
 
         self.btn_reload.clicked.connect(self.reload_from_device)
         self.btn_apply.clicked.connect(self.apply_to_device)
@@ -130,37 +123,25 @@ class CalibrationTab(QWidget):
         self.table.setRowCount(0)
         enabled = device is not None
         for btn in (
-            self.btn_reload,
-            self.btn_apply,
-            self.btn_reset,
-            self.btn_save,
-            self.btn_load,
-            self.btn_udev,
-            self.btn_rights,
+            self.btn_reload, self.btn_apply, self.btn_reset,
+            self.btn_save, self.btn_load, self.btn_udev, self.btn_rights,
         ):
             btn.setEnabled(enabled)
         if device is None:
-            self.status.setText("Kein Geraet gewaehlt.")
+            self.status.setText(i18n.t("calib.status_no_device"))
             return
 
         if device.writable:
-            self.status.setText(
-                "Aenderungen wirken sofort und gelten bis zum Abziehen des Sticks. "
-                "Fuer dauerhaft: unten eine udev-Regel erzeugen."
-            )
+            self.status.setText(i18n.t("calib.status_rw"))
         else:
-            self.status.setText(
-                f"Nur Lesezugriff auf {device.path}. Schreiben schlaegt fehl. "
-                "Mit 'Rechte-Regel erzeugen' bekommst du eine udev-Regel, die "
-                "genau diesem Geraet Schreibrecht gibt."
-            )
+            self.status.setText(i18n.t("calib.status_ro", path=device.path))
             self.btn_apply.setEnabled(False)
             self.btn_reset.setEnabled(False)
 
         self._populate(device)
 
     def _populate(self, device: X52Device) -> None:
-        rows = [ax for ax in device.axes]
+        rows = list(device.axes)
         self.table.setRowCount(len(rows))
         for row, axis in enumerate(rows):
             name = QTableWidgetItem(f"{axis.label}   (ABS 0x{axis.code:02x})")
@@ -211,8 +192,8 @@ class CalibrationTab(QWidget):
             info = axis.info.copy()
             info.minimum = spins["minimum"].value()
             info.maximum = spins["maximum"].value()
-            info.fuzz = spins["fuzz"].value()
-            info.flat = spins["flat"].value()
+            info.fuzz    = spins["fuzz"].value()
+            info.flat    = spins["flat"].value()
             result[axis.code] = info
         return result
 
@@ -231,14 +212,12 @@ class CalibrationTab(QWidget):
         except PermissionError:
             QMessageBox.warning(
                 self,
-                "Schreiben fehlgeschlagen",
-                f"Kein Schreibrecht auf {self.device.path}.\n\n"
-                "Erzeuge unten eine Rechte-Regel oder starte das Programm einmal "
-                "mit erhoehten Rechten, um den Effekt zu testen.",
+                i18n.t("calib.dlg_write_fail_title"),
+                i18n.t("calib.dlg_write_fail_msg", path=self.device.path),
             )
             return
         except OSError as exc:
-            QMessageBox.warning(self, "Schreiben fehlgeschlagen", str(exc))
+            QMessageBox.warning(self, i18n.t("calib.dlg_write_fail_title"), str(exc))
             return
         self._populate(self.device)
         self.calibrationChanged.emit()
@@ -249,18 +228,12 @@ class CalibrationTab(QWidget):
         try:
             self.device.restore_baseline()
         except OSError as exc:
-            QMessageBox.warning(self, "Zuruecksetzen fehlgeschlagen", str(exc))
+            QMessageBox.warning(self, i18n.t("calib.dlg_reset_fail_title"), str(exc))
             return
         self._populate(self.device)
         self.calibrationChanged.emit()
 
     def apply_suggestions(self, suggestions: dict[int, dict[str, int]]) -> None:
-        """Wird vom Analyse-Reiter aufgerufen.
-
-        Jede Achse liefert entweder eine Deadzone- oder eine Fuzz-
-        Empfehlung (nie beides) - je nachdem, ob sie eine verlaessliche
-        Mitte hat. Siehe AxisMeasurement.has_reliable_center.
-        """
         for code, values in suggestions.items():
             spins = self._spins.get(code)
             if not spins:
@@ -278,7 +251,11 @@ class CalibrationTab(QWidget):
             return
         self.settings.set_profile(self.device.usb_id, self.current_values())
         path = self.settings.save()
-        QMessageBox.information(self, "Profil gespeichert", f"Abgelegt in {path}")
+        QMessageBox.information(
+            self,
+            i18n.t("calib.dlg_profile_saved_title"),
+            i18n.t("calib.dlg_profile_saved_msg", path=path),
+        )
 
     def load_profile(self) -> None:
         if self.device is None:
@@ -286,7 +263,9 @@ class CalibrationTab(QWidget):
         stored = self.settings.profile(self.device.usb_id)
         if not stored:
             QMessageBox.information(
-                self, "Kein Profil", f"Fuer {self.device.usb_id} ist nichts gespeichert."
+                self,
+                i18n.t("calib.dlg_no_profile_title"),
+                i18n.t("calib.dlg_no_profile_msg", usb_id=self.device.usb_id),
             )
             return
         for code, info in stored.items():
@@ -299,8 +278,6 @@ class CalibrationTab(QWidget):
     def show_udev_rule(self) -> None:
         if self.device is None:
             return
-        # Vorher die Tabellenwerte in die Achsen uebernehmen, damit die Regel
-        # das zeigt, was gerade eingestellt ist.
         values = self.current_values()
         for axis in self.device.axes:
             if axis.code in values:
@@ -310,9 +287,32 @@ class CalibrationTab(QWidget):
             + "\n\n# --- Alternative ohne evdev-joystick ---\n\n"
             + udev_rule_selfcall(self.device)
         )
-        TextDialog("udev-Regel", text, self).exec()
+        TextDialog(i18n.t("calib.dlg_udev_title"), text, self).exec()
 
     def show_permission_rule(self) -> None:
         if self.device is None:
             return
-        TextDialog("Rechte-Regel", udev_rule_permissions(self.device), self).exec()
+        TextDialog(i18n.t("calib.dlg_rights_title"), udev_rule_permissions(self.device), self).exec()
+
+    def retranslate(self) -> None:
+        """Beschriftungen nach Sprachwechsel aktualisieren. Tabellenwerte bleiben."""
+        # Spaltenheader neu setzen
+        cols = _columns()
+        self.table.setHorizontalHeaderLabels(cols)
+        self.table.horizontalHeaderItem(3).setToolTip(i18n.t("calib.tooltip_fuzz"))
+        self.table.horizontalHeaderItem(4).setToolTip(i18n.t("calib.tooltip_deadzone"))
+        # Buttons
+        self.btn_reload.setText(i18n.t("calib.btn_reload"))
+        self.btn_apply.setText(i18n.t("calib.btn_apply"))
+        self.btn_reset.setText(i18n.t("calib.btn_reset"))
+        self.btn_save.setText(i18n.t("calib.btn_save"))
+        self.btn_load.setText(i18n.t("calib.btn_load"))
+        self.btn_udev.setText(i18n.t("calib.btn_udev"))
+        self.btn_rights.setText(i18n.t("calib.btn_rights"))
+        # Status
+        if self.device is None:
+            self.status.setText(i18n.t("calib.status_no_device"))
+        elif self.device.writable:
+            self.status.setText(i18n.t("calib.status_rw"))
+        else:
+            self.status.setText(i18n.t("calib.status_ro", path=self.device.path))

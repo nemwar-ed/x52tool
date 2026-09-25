@@ -37,6 +37,7 @@ from .widgets import (
     Position2DWidget,
     RockerTriplet,
 )
+from .. import i18n
 
 # Die drei vom Kernel unbenannten Codes zwischen BTN_BASE6 und BTN_DEAD
 # (siehe device.py) - T5, T6, Second Trigger.
@@ -51,12 +52,12 @@ class LiveTab(QWidget):
         self.device: X52Device | None = None
         self.bars: dict[int, AxisBar] = {}
         self.position_widgets: list[tuple[int, int, Position2DWidget]] = []
-        self.axis_hats: dict[int, HatWidget] = {}  # X-Code -> Widget
+        self.axis_hats: dict[int, HatWidget] = {}
         self.button_hats: list[ButtonHatWidget] = []
         self.button_tiles: list[ButtonTile] = []
         self.rockers: list[RockerTriplet] = []
 
-        self.hint = QLabel("Kein Geraet gewaehlt.")
+        self.hint = QLabel(i18n.t("live.hint_no_device"))
         self.hint.setWordWrap(True)
 
         self.body = QWidget()
@@ -89,14 +90,10 @@ class LiveTab(QWidget):
                 widget.deleteLater()
 
         if device is None:
-            self.hint.setText("Kein Geraet gewaehlt.")
+            self.hint.setText(i18n.t("live.hint_no_device"))
             return
 
-        self.hint.setText(
-            "Alles bewegen, jede Taste einmal druecken. Ein Feld/Balken, das "
-            "sich nicht bewegt, oder eine Taste, die nicht aufleuchtet, ist "
-            "der Befund."
-        )
+        self.hint.setText(i18n.t("live.hint_active"))
 
         by_code: dict[int, Axis] = {ax.code: ax for ax in device.axes}
         used_codes: set[int] = set()
@@ -108,19 +105,14 @@ class LiveTab(QWidget):
             top_row.addWidget(ministick_box, 1)
         self.body_layout.addLayout(top_row)
 
-        # Hat-Achsencodes schon hier reservieren (nicht erst in
-        # _build_hats_row), sonst landen sie faelschlich im Fallback unten.
         for x_code, y_code in HAT_AXIS_PAIRS.items():
             if x_code in by_code and y_code in by_code:
                 used_codes.add(x_code)
                 used_codes.add(y_code)
 
-        # Alle Achsen, die keinen Spezialplatz oben bekommen haben (z.B. auf
-        # einem anderen Geraet als dem X52 Pro), landen sicherheitshalber
-        # als ganz normaler waagerechter Balken hier - nichts geht verloren.
         leftover = [ax for ax in device.axes if ax.code not in used_codes]
         if leftover:
-            fallback_box = QGroupBox("Weitere Achsen")
+            fallback_box = QGroupBox(i18n.t("live.group_extra_axes"))
             fallback_layout = QVBoxLayout(fallback_box)
             fallback_layout.setSpacing(2)
             for axis in leftover:
@@ -131,7 +123,6 @@ class LiveTab(QWidget):
 
         self._build_hats_row(device, by_code, used_codes)
 
-        # -- Tasten, gruppiert wie im Original-Windows-Tool -----------------
         by_btn_code = {b.code: b for b in device.buttons}
 
         top_buttons_row = QHBoxLayout()
@@ -145,24 +136,24 @@ class LiveTab(QWidget):
         for box in (
             self._build_cross_box(
                 "POV2", by_btn_code,
-                up=("Hoch", ecodes.BTN_TRIGGER_HAPPY4),
-                right=("Rechts", ecodes.BTN_TRIGGER_HAPPY5),
-                down=("Runter", ecodes.BTN_TRIGGER_HAPPY6),
-                left=("Links", ecodes.BTN_TRIGGER_HAPPY7),
+                up=(i18n.t("live.dir_up"),    ecodes.BTN_TRIGGER_HAPPY4),
+                right=(i18n.t("live.dir_right"), ecodes.BTN_TRIGGER_HAPPY5),
+                down=(i18n.t("live.dir_down"),  ecodes.BTN_TRIGGER_HAPPY6),
+                left=(i18n.t("live.dir_left"),  ecodes.BTN_TRIGGER_HAPPY7),
             ),
             self._build_cross_box(
                 "Throttle Hat", by_btn_code,
-                up=("Hoch", ecodes.BTN_TRIGGER_HAPPY8),
-                right=("Rechts", ecodes.BTN_TRIGGER_HAPPY9),
-                down=("Runter", ecodes.BTN_TRIGGER_HAPPY10),
-                left=("Links", ecodes.BTN_TRIGGER_HAPPY11),
+                up=(i18n.t("live.dir_up"),    ecodes.BTN_TRIGGER_HAPPY8),
+                right=(i18n.t("live.dir_right"), ecodes.BTN_TRIGGER_HAPPY9),
+                down=(i18n.t("live.dir_down"),  ecodes.BTN_TRIGGER_HAPPY10),
+                left=(i18n.t("live.dir_left"),  ecodes.BTN_TRIGGER_HAPPY11),
             ),
             self._build_cross_box(
                 "Mouse", by_btn_code,
-                up=("Wheel hoch", ecodes.BTN_TRIGGER_HAPPY1),
-                right=("Rechts", ecodes.BTN_TRIGGER_HAPPY3),
-                down=("Wheel runter", ecodes.BTN_TRIGGER_HAPPY2),
-                left=("Links", ecodes.BTN_DEAD),
+                up=("Wheel " + i18n.t("live.dir_up"),    ecodes.BTN_TRIGGER_HAPPY1),
+                right=(i18n.t("live.dir_right"),           ecodes.BTN_TRIGGER_HAPPY3),
+                down=("Wheel " + i18n.t("live.dir_down"), ecodes.BTN_TRIGGER_HAPPY2),
+                left=(i18n.t("live.dir_left"),             ecodes.BTN_DEAD),
             ),
         ):
             if box is not None:
@@ -189,10 +180,6 @@ class LiveTab(QWidget):
         down: tuple[str, int],
         left: tuple[str, int],
     ) -> QGroupBox | None:
-        """Vier Tasten im Kreuz - naeher an der physischen Hat-Form als
-        eine Reihe. Fuer POV2/Throttle Hat (echte Hats aus Einzeltasten)
-        und Mouse (Wheel hoch/runter, Klick links/rechts - passt auf
-        dieselbe Kreuzform)."""
         entries = {"up": up, "right": right, "down": down, "left": left}
         if not any(code in by_btn_code for _, code in entries.values()):
             return None
@@ -225,18 +212,15 @@ class LiveTab(QWidget):
         return row
 
     def _build_buttons_box(self, by_btn_code: dict[int, Button]) -> QGroupBox:
-        """Einzeltasten ohne Hat-Charakter, zentriert in drei Zeilen:
-        Trigger/Sec.Trigger, Fire-Gruppe, Pinkie/Clutch. POV2/Throttle
-        Hat/Mouse haben eigene Kreuz-Bloecke (siehe _build_cross_box)."""
-        box = QGroupBox("Buttons")
+        box = QGroupBox(i18n.t("live.group_buttons"))
         layout = QVBoxLayout(box)
 
         rows: list[list[tuple[str, list[int]]]] = [
             [("Trigger", [ecodes.BTN_TRIGGER]), ("Sec. Trigger", [_GAP3])],
             [
-                ("Fire", [ecodes.BTN_THUMB]), ("Fire A", [ecodes.BTN_THUMB2]),
-                ("Fire B", [ecodes.BTN_TOP]), ("Fire C", [ecodes.BTN_TOP2]),
-                ("Fire D", [ecodes.BTN_BASE]), ("Fire E", [ecodes.BTN_BASE2]),
+                ("Fire",   [ecodes.BTN_THUMB]),  ("Fire A", [ecodes.BTN_THUMB2]),
+                ("Fire B", [ecodes.BTN_TOP]),    ("Fire C", [ecodes.BTN_TOP2]),
+                ("Fire D", [ecodes.BTN_BASE]),   ("Fire E", [ecodes.BTN_BASE2]),
             ],
             [("Pinkie", [ecodes.BTN_PINKIE]), ("Clutch (i)", [ecodes.BTN_TRIGGER_HAPPY15])],
         ]
@@ -247,35 +231,31 @@ class LiveTab(QWidget):
         return box
 
     def _build_toggles_box(self, by_btn_code: dict[int, Button]) -> QGroupBox | None:
-        # 3x2-Raster: T1/T3/T5 oben, T2/T4/T6 unten - wie am Geraet.
-        top = ["T1", "T3", "T5"]
-        top_codes = [ecodes.BTN_BASE3, ecodes.BTN_BASE5, _GAP1]
-        bottom = ["T2", "T4", "T6"]
+        top_codes    = [ecodes.BTN_BASE3, ecodes.BTN_BASE5, _GAP1]
         bottom_codes = [ecodes.BTN_BASE4, ecodes.BTN_BASE6, _GAP2]
         if not any(c in by_btn_code for c in top_codes + bottom_codes):
             return None
-        box = QGroupBox("Toggles")
+        box = QGroupBox(i18n.t("live.group_toggles"))
         grid = QGridLayout(box)
-        for col, (label, code) in enumerate(zip(top, top_codes)):
+        for col, (label, code) in enumerate(zip(["T1", "T3", "T5"], top_codes)):
             tile = self._tile(by_btn_code, label, [code])
             if tile:
                 grid.addWidget(tile, 0, col)
-        for col, (label, code) in enumerate(zip(bottom, bottom_codes)):
+        for col, (label, code) in enumerate(zip(["T2", "T4", "T6"], bottom_codes)):
             tile = self._tile(by_btn_code, label, [code])
             if tile:
                 grid.addWidget(tile, 1, col)
         return box
 
     def _build_mode_box(self, by_btn_code: dict[int, Button]) -> QGroupBox | None:
-        # Blau oben, Lila Mitte, Rot unten - von Oliver so vorgegeben.
         entries = [
-            ("Mode 3 / Blue", [ecodes.BTN_TRIGGER_HAPPY14]),
-            ("Mode 2 / Purple", [ecodes.BTN_TRIGGER_HAPPY13]),
-            ("Mode 1 / Red", [ecodes.BTN_TRIGGER_HAPPY12]),
+            (i18n.t("buttons.mode_blue"),   [ecodes.BTN_TRIGGER_HAPPY14]),
+            (i18n.t("buttons.mode_purple"), [ecodes.BTN_TRIGGER_HAPPY13]),
+            (i18n.t("buttons.mode_red"),    [ecodes.BTN_TRIGGER_HAPPY12]),
         ]
         if not any(c in by_btn_code for _, codes in entries for c in codes):
             return None
-        box = QGroupBox("Mode")
+        box = QGroupBox(i18n.t("live.group_mode"))
         layout = QVBoxLayout(box)
         for label, codes in entries:
             tile = self._tile(by_btn_code, label, codes)
@@ -291,26 +271,26 @@ class LiveTab(QWidget):
             return btn.index + 1 if btn else None
 
         return {
-            "up": ("Hoch", num(up)),
-            "down": ("Runter", num(down)),
-            "press": ("Klick", num(press)),
+            "up":    (i18n.t("live.rocker_up"),    num(up)),
+            "down":  (i18n.t("live.rocker_down"),  num(down)),
+            "press": (i18n.t("live.rocker_click"),  num(press)),
         }
 
     def _build_mfd_box(self, by_btn_code: dict[int, Button]) -> QGroupBox | None:
-        left_codes = (ecodes.BTN_TRIGGER_HAPPY19, ecodes.BTN_TRIGGER_HAPPY20, ecodes.BTN_TRIGGER_HAPPY16)
+        left_codes  = (ecodes.BTN_TRIGGER_HAPPY19, ecodes.BTN_TRIGGER_HAPPY20, ecodes.BTN_TRIGGER_HAPPY16)
         right_codes = (ecodes.BTN_TRIGGER_HAPPY21, ecodes.BTN_TRIGGER_HAPPY22, ecodes.BTN_TRIGGER_HAPPY23)
-        mid_codes = (ecodes.BTN_TRIGGER_HAPPY17, ecodes.BTN_TRIGGER_HAPPY18)
+        mid_codes   = (ecodes.BTN_TRIGGER_HAPPY17, ecodes.BTN_TRIGGER_HAPPY18)
         if not any(c in by_btn_code for c in left_codes + right_codes + mid_codes):
             return None
 
-        box = QGroupBox("MFD")
+        box = QGroupBox(i18n.t("live.group_mfd"))
         row = QHBoxLayout(box)
         row.addStretch(1)
 
         if all(c in by_btn_code for c in left_codes):
             up, down, press = left_codes
             rocker = RockerTriplet(
-                "Links", up, down, press,
+                i18n.t("live.mfd_left"), up, down, press,
                 segment_info=self._rocker_segment_info(by_btn_code, up, down, press),
             )
             rocker.setMinimumSize(85, 100)
@@ -319,7 +299,7 @@ class LiveTab(QWidget):
 
         mid_tiles = [t for t in (
             self._tile(by_btn_code, "Start/Stop", [ecodes.BTN_TRIGGER_HAPPY17]),
-            self._tile(by_btn_code, "Reset", [ecodes.BTN_TRIGGER_HAPPY18]),
+            self._tile(by_btn_code, "Reset",      [ecodes.BTN_TRIGGER_HAPPY18]),
         ) if t]
         if mid_tiles:
             mid_col = QVBoxLayout()
@@ -332,7 +312,7 @@ class LiveTab(QWidget):
         if all(c in by_btn_code for c in right_codes):
             up, down, press = right_codes
             rocker = RockerTriplet(
-                "Rechts", up, down, press,
+                i18n.t("live.mfd_right"), up, down, press,
                 segment_info=self._rocker_segment_info(by_btn_code, up, down, press),
             )
             rocker.setMinimumSize(85, 100)
@@ -345,10 +325,9 @@ class LiveTab(QWidget):
     def _build_stick_and_throttle_box(
         self, by_code: dict[int, Axis], used_codes: set[int]
     ) -> QGroupBox:
-        box = QGroupBox("Achsen")
+        box = QGroupBox(i18n.t("live.group_axes"))
         grid = QGridLayout(box)
 
-        # Stick X/Y als 2D-Feld
         if ecodes.ABS_X in by_code and ecodes.ABS_Y in by_code:
             x_axis, y_axis = by_code[ecodes.ABS_X], by_code[ecodes.ABS_Y]
             pos = Position2DWidget("Stick", x_axis, y_axis)
@@ -356,7 +335,6 @@ class LiveTab(QWidget):
             used_codes.update((x_axis.code, y_axis.code))
             grid.addWidget(pos, 0, 0, 3, 1)
 
-        # Schubhebel als senkrechter Balken direkt daneben
         if ecodes.ABS_Z in by_code:
             axis = by_code[ecodes.ABS_Z]
             bar = AxisBar(axis, orientation="vertical")
@@ -364,9 +342,6 @@ class LiveTab(QWidget):
             used_codes.add(axis.code)
             grid.addWidget(bar, 0, 1, 3, 1)
 
-        # Rotary 2 (X-Achse) oben, Rotary 1 (Y-Achse) darunter - rechts
-        # vom Schubhebel. Reihenfolge von Oliver an echter Hardware
-        # bestaetigt.
         for row, code in enumerate((ecodes.ABS_RY, ecodes.ABS_RX)):
             if code in by_code:
                 axis = by_code[code]
@@ -375,9 +350,6 @@ class LiveTab(QWidget):
                 used_codes.add(axis.code)
                 grid.addWidget(bar, row, 2)
 
-        # Twist und Schieberegler nebeneinander, volle Breite der Box -
-        # als eigene Zeile statt ueber Grid-Spaltenspannen (die reichen bei
-        # nur 3 definierten Spalten sonst über den Rand hinaus).
         bottom_row = QHBoxLayout()
         has_bottom = False
         for code in (ecodes.ABS_RZ, ecodes.ABS_THROTTLE):
@@ -402,13 +374,11 @@ class LiveTab(QWidget):
         if ecodes.ABS_MISC not in by_code or ABS_MISC_Y not in by_code:
             return None
         x_axis, y_axis = by_code[ecodes.ABS_MISC], by_code[ABS_MISC_Y]
-        box = QGroupBox("Ministick")
+        box = QGroupBox(i18n.t("live.group_ministick"))
         layout = QVBoxLayout(box)
-        pos = Position2DWidget("Maus-Stick", x_axis, y_axis)
+        pos = Position2DWidget(i18n.t("live.ministick_label"), x_axis, y_axis)
         self.position_widgets.append((x_axis.code, y_axis.code, pos))
         used_codes.update((x_axis.code, y_axis.code))
-        # In beide Richtungen zentrieren, egal wie gross die Box durch das
-        # Streckungsverhaeltnis in der oberen Reihe am Ende wird.
         layout.addStretch(1)
         layout.addWidget(pos, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addStretch(1)
@@ -417,7 +387,6 @@ class LiveTab(QWidget):
     def _build_hats_row(
         self, device: X52Device, by_code: dict[int, Axis], used_codes: set[int]
     ) -> None:
-        # Welche X-Codes eines Hat-Achsenpaars gehoeren zusammen und sind da.
         hat_x_codes = {
             x for x, y in HAT_AXIS_PAIRS.items() if x in by_code and y in by_code
         }
@@ -439,7 +408,7 @@ class LiveTab(QWidget):
                     hat_widgets.append(widget)
 
         if hat_widgets:
-            hats_box = QGroupBox("Hats")
+            hats_box = QGroupBox(i18n.t("live.group_hats"))
             hats_layout = QHBoxLayout(hats_box)
             hats_layout.addStretch(1)
             for widget in hat_widgets:
@@ -477,3 +446,10 @@ class LiveTab(QWidget):
                 bar.set_info(axis.info)
         for x_code, y_code, pos in self.position_widgets:
             pos.update()
+
+    def retranslate(self) -> None:
+        """Beschriftungen nach Sprachwechsel aktualisieren.
+        Baut den Tab mit dem aktuellen Geraet neu auf - alle Labels kommen
+        dann frisch aus i18n, inkl. Achsennamen und Gruppentitel.
+        """
+        self.set_device(self.device)

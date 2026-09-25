@@ -6,6 +6,8 @@ testen und ist die Stelle, an der spaeter ein uinput-Pfad andocken wuerde.
 
 from __future__ import annotations
 
+from . import i18n
+
 import fcntl
 import os
 import re
@@ -135,19 +137,19 @@ def open_writable(path: str) -> Iterator[int]:
 # Falsches zu behaupten. Im Live-Test laesst sich das durch Bewegen klaeren.
 ABS_MISC_Y = 0x29  # im Kernel kein eigener Name vergeben
 
-AXIS_LABELS: dict[int, str] = {
-    ecodes.ABS_X: "Stick X (Rollen)",
-    ecodes.ABS_Y: "Stick Y (Nicken)",
-    ecodes.ABS_RZ: "Stick Z (Gieren / Twist)",
-    ecodes.ABS_Z: "Schubhebel",
-    ecodes.ABS_MISC: "Ministick X (Maus-Stick, digital)",
-    ABS_MISC_Y: "Ministick Y (Maus-Stick, digital)",
-    ecodes.ABS_THROTTLE: "Schieberegler",
-    ecodes.ABS_RUDDER: "Rudder",
-    ecodes.ABS_RX: "Rotary 1 (Y-Achse)",
-    ecodes.ABS_RY: "Rotary 2 (X-Achse)",
-    ecodes.ABS_HAT0X: "POV 1 X",
-    ecodes.ABS_HAT0Y: "POV 1 Y",
+_AXIS_LABEL_KEYS: dict[int, str] = {
+    ecodes.ABS_X:        "axes.abs_x",
+    ecodes.ABS_Y:        "axes.abs_y",
+    ecodes.ABS_RZ:       "axes.abs_rz",
+    ecodes.ABS_Z:        "axes.abs_z",
+    ecodes.ABS_MISC:     "axes.abs_misc_x",
+    ABS_MISC_Y:          "axes.abs_misc_y",
+    ecodes.ABS_THROTTLE: "axes.abs_throttle",
+    ecodes.ABS_RUDDER:   "axes.abs_rudder",
+    ecodes.ABS_RX:       "axes.abs_rx",
+    ecodes.ABS_RY:       "axes.abs_ry",
+    ecodes.ABS_HAT0X:    "axes.abs_hat0x",
+    ecodes.ABS_HAT0Y:    "axes.abs_hat0y",
 }
 
 # Achsen, bei denen eine Deadzone unsinnig ist: digitale Hats und der
@@ -229,8 +231,8 @@ HAT_AXIS_PAIRS: dict[int, int] = {
 
 
 def axis_label(code: int) -> str:
-    if code in AXIS_LABELS:
-        return AXIS_LABELS[code]
+    if code in _AXIS_LABEL_KEYS:
+        return i18n.t(_AXIS_LABEL_KEYS[code])
     raw = ecodes.ABS.get(code, f"ABS {code}")
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
@@ -423,18 +425,19 @@ class X52Device:
         return bool(entry and entry[1])
 
     def describe(self) -> list[tuple[str, str]]:
+        t = i18n.t
         return [
-            ("Name", self.dev.name),
-            ("Pfad", self.dev.path),
-            ("USB-ID", self.usb_id),
-            ("Erkannt als", self.known_name or "unbekanntes Eingabegeraet"),
-            ("MFD / LEDs", "ja (Pro)" if self.is_pro else "nein"),
-            ("Physischer Pfad", self.dev.phys or "-"),
-            ("Seriennummer", self.dev.uniq or "-"),
-            ("Version", f"0x{self.dev.info.version:04x}"),
-            ("Achsen", str(len(self.axes))),
-            ("Tasten", str(len(self.buttons))),
-            ("Schreibrecht", "ja" if self.writable else "nein"),
+            (t("device.describe_name"),     self.dev.name),
+            (t("device.describe_path"),     self.dev.path),
+            (t("device.describe_usb_id"),   self.usb_id),
+            (t("device.describe_known_as"), self.known_name or t("device.describe_unknown")),
+            (t("device.describe_mfd_leds"), t("device.describe_mfd_yes") if self.is_pro else t("device.describe_mfd_no")),
+            (t("device.describe_phys_path"),self.dev.phys or "-"),
+            (t("device.describe_serial"),   self.dev.uniq or "-"),
+            (t("device.describe_version"),  f"0x{self.dev.info.version:04x}"),
+            (t("device.describe_axes"),     str(len(self.axes))),
+            (t("device.describe_buttons"),  str(len(self.buttons))),
+            (t("device.describe_writable"), t("device.describe_yes") if self.writable else t("device.describe_no")),
         ]
 
     @property
@@ -546,15 +549,15 @@ def _classify_node(caps: dict) -> tuple[str, str]:
     ev_types = ", ".join(_EV_TYPE_NAMES.get(t, str(t)) for t in sorted(caps.keys()))
 
     if ecodes.EV_REL in caps and ecodes.EV_ABS not in caps:
-        return "Maus-Emulation (vermutlich Ministick)", ev_types
+        return i18n.t("device.role_mouse_emu"), ev_types
     if ecodes.EV_ABS in caps:
         abs_codes = set(caps.get(ecodes.EV_ABS, []))
         if abs_codes & {ecodes.ABS_X, ecodes.ABS_Y}:
-            return "Joystick-Achsen (dieser Knoten wird verwendet)", ev_types
-        return "Zusatzachsen ohne Haupt-Stick", ev_types
+            return i18n.t("device.role_joystick"), ev_types
+        return i18n.t("device.role_extra_axes"), ev_types
     if ecodes.EV_KEY in caps:
-        return "Nur Tasten, keine Achsen", ev_types
-    return "Unklare Rolle", ev_types
+        return i18n.t("device.role_buttons_only"), ev_types
+    return i18n.t("device.role_unclear"), ev_types
 
 
 # Woerter, die in praktisch jedem Geraetenamen vorkommen und daher beim
@@ -606,7 +609,7 @@ def find_related_nodes(vendor: int, product: int, exclude_path: str, name: str =
             caps = dev.capabilities(absinfo=False)
             role, ev_types = _classify_node(caps)
             if is_virtual_match:
-                role += " - virtuell, per Name erkannt (keine USB-ID vorhanden)"
+                role += i18n.t("device.role_virtual_suffix")
             related.append(
                 RelatedNode(path=dev.path, name=dev.name, phys=dev.phys or "-", role=role, ev_types=ev_types)
             )
