@@ -252,7 +252,7 @@ class OutputTab(QWidget):
         for line in range(MFD_LINES):
             current = [" "] * MFD_WIDTH
             for col in range(MFD_WIDTH):
-                current[col] = "\xff" if col % 2 == 0 else "\x00"
+                current[col] = "\xff" if col % 2 == 0 else " "
                 steps.append(("mfd", line, "".join(current)))
 
         # --- MFD leeren ---
