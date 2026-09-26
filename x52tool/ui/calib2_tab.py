@@ -331,6 +331,7 @@ class Calib2Tab(QWidget):
 
         # Ministick-Box – wird in set_device befüllt
         self.ministick_box = QGroupBox(i18n.t("live.group_ministick"))
+        self.ministick_box.setMaximumWidth(220)
         self.ministick_box_layout = QVBoxLayout(self.ministick_box)
         self.ministick_pos: Position2DWidget | None = None
 

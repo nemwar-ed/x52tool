@@ -258,8 +258,11 @@ class Position2DWidget(QWidget):
         info = axis.info
         if info.span == 0:
             return 0.5
-        shown       = display_value(axis.code, info, value)
-        shown_center = display_value(axis.code, info, info.value)
+        shown        = display_value(axis.code, info, value)
+        # Referenzpunkt: info.value wenn explizit kalibriert (≠ 0),
+        # sonst geometrische Mitte (centre)
+        ref_raw      = info.value if info.value != 0 else info.centre
+        shown_center = display_value(axis.code, info, ref_raw)
         return min(1.0, max(0.0, 0.5 + (shown - shown_center) / info.span))
 
     def paintEvent(self, _event) -> None:  # noqa: N802
@@ -327,9 +330,10 @@ class Position2DWidget(QWidget):
         x_info, y_info = self.x_axis.info, self.y_axis.info
         x_shown  = display_value(self.x_axis.code, x_info, self.x_value)
         y_shown  = display_value(self.y_axis.code, y_info, self.y_value)
-        x_center = display_value(self.x_axis.code, x_info, x_info.value)
-        y_center = display_value(self.y_axis.code, y_info, y_info.value)
-        # Offset als % relativ zum halben Achsenbereich – immer symmetrisch
+        x_ref    = x_info.value if x_info.value != 0 else x_info.centre
+        y_ref    = y_info.value if y_info.value != 0 else y_info.centre
+        x_center = display_value(self.x_axis.code, x_info, x_ref)
+        y_center = display_value(self.y_axis.code, y_info, y_ref)
         x_half = x_info.span / 2 or 1
         y_half = y_info.span / 2 or 1
         x_pct = max(-100, min(100, int(round((x_shown - x_center) / x_half * 100))))
