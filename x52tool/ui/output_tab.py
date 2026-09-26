@@ -206,43 +206,64 @@ class OutputTab(QWidget):
     # -- Volltest ----------------------------------------------------------
 
     def _build_test_steps(self) -> list:
-        """Baut die Liste aller Testschritte auf."""
+        """Baut die Liste aller Testschritte auf.
+
+        Reihenfolge: Flackern → Stick-LEDs → Throttle-LEDs → MFD → alles grün
+        """
         steps = []
-        leds  = PRO_LEDS()
 
-        # Flackern: Helligkeit auf 0, dann 100
-        steps.append(("brightness", "mfd",  0))
-        steps.append(("brightness", "led",  0))
-        steps.append(("brightness", "mfd",  128))
-        steps.append(("brightness", "led",  128))
+        # LEDs nach Gerät geordnet
+        STICK_KEYS    = ["fire", "a", "b", "pov", "t1", "t2", "t3"]
+        THROTTLE_KEYS = ["e", "d", "clutch", "throttle"]
 
-        # Alle LEDs aus
-        for key, _label, _states in leds:
+        # Lookup: key → states
+        led_map = {key: states for key, _label, states in PRO_LEDS()}
+
+        # --- Flackern: Helligkeit 0 → 100 (schnell) ---
+        for target in ("mfd", "led"):
+            steps.append(("brightness", target, 0))
+        for target in ("mfd", "led"):
+            steps.append(("brightness", target, 128))
+
+        # --- Alle LEDs aus ---
+        for key in STICK_KEYS + THROTTLE_KEYS:
+            if key in led_map:
+                steps.append(("led", key, "off"))
+
+        # --- Stick-LEDs einzeln durchtesten ---
+        for key in STICK_KEYS:
+            states = led_map.get(key, ())
+            for state in states[1:]:          # off überspringen
+                steps.append(("led", key, state))
             steps.append(("led", key, "off"))
 
-        # LED-Sweep – langsam (eine LED nach der anderen, alle Farben)
-        for key, _label, states in leds:
+        # --- Throttle-LEDs einzeln durchtesten ---
+        for key in THROTTLE_KEYS:
+            states = led_map.get(key, ())
             for state in states[1:]:
                 steps.append(("led", key, state))
             steps.append(("led", key, "off"))
 
-        # MFD leeren
+        # --- MFD leeren ---
         for line in range(MFD_LINES):
             steps.append(("mfd", line, ""))
 
-        # MFD Zeichentest: Zeile für Zeile, Zeichen für Zeichen
-        # abwechselnd Vollblock (0xFF = chr(255)) und Rahmen (chr(0))
+        # --- MFD Zeichentest: Zeile für Zeile, Zeichen für Zeichen ---
         for line in range(MFD_LINES):
+            current = [" "] * MFD_WIDTH
             for col in range(MFD_WIDTH):
-                # Zeile aufbauen: bisherige Zeichen + neues Zeichen
-                # Vollblock = '\xff', leeres Zeichen = ' '
-                char = "\xff" if (col % 2 == 0) else " "
-                text = " " * col + char
-                steps.append(("mfd", line, text.ljust(MFD_WIDTH)))
+                current[col] = "\xff" if col % 2 == 0 else "\x00"
+                steps.append(("mfd", line, "".join(current)))
 
-        # MFD leeren am Ende
+        # --- MFD leeren ---
         for line in range(MFD_LINES):
             steps.append(("mfd", line, ""))
+
+        # --- Ende: alle LEDs grün / an ---
+        for key in STICK_KEYS + THROTTLE_KEYS:
+            states = led_map.get(key, ())
+            final  = "green" if "green" in states else ("on" if "on" in states else states[-1])
+            steps.append(("led", key, final))
 
         return steps
 
