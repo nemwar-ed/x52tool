@@ -244,5 +244,7 @@ peak_status_pending  = ausstehend
 peak_status_min_ok   = Min ✓
 peak_status_done     = ✓ fertig
 peak_status_skipped  = übersprungen
+peak_ministick_label = Ministick (X + Y)
+peak_instr_ministick = Ministick in alle Richtungen bis zum Anschlag bewegen.
 peak_btn_skip        = Achse überspringen
 peak_btn_abort       = Abbrechen

@@ -244,5 +244,7 @@ peak_status_pending  = pending
 peak_status_min_ok   = Min ✓
 peak_status_done     = ✓ done
 peak_status_skipped  = skipped
+peak_ministick_label = Ministick (X + Y)
+peak_instr_ministick = Move the ministick to its limits in all directions.
 peak_btn_skip        = Skip Axis
 peak_btn_abort       = Abort

@@ -106,6 +106,14 @@ class _PeakPanel(QWidget):
         self._phase   = "min"
         self._confirm_count = 0
 
+        # Ministick-Achsen separat merken (X und Y gemeinsam als ein Eintrag)
+        self._ms_axes = [ax for ax in axes if is_ministick(ax.code)]
+        self._ms_done = False
+        # ms_reached: {code: (min_reached, max_reached)}
+        self._ms_reached: dict[int, list[bool]] = {
+            ax.code: [False, False] for ax in self._ms_axes
+        }
+
         # Checkliste neu aufbauen
         while self.checklist_layout.count():
             item = self.checklist_layout.takeAt(0)
@@ -127,6 +135,19 @@ class _PeakPanel(QWidget):
             self.checklist_layout.addLayout(row)
             self.rows.append((name, status))
 
+        # Ministick als letzter Eintrag (wenn vorhanden)
+        self._ms_row_status: QLabel | None = None
+        if self._ms_axes:
+            row = QHBoxLayout()
+            name   = QLabel(i18n.t("calib2.peak_ministick_label"))
+            status = QLabel(i18n.t("calib2.peak_status_pending"))
+            status.setAlignment(Qt.AlignmentFlag.AlignRight)
+            row.addWidget(name)
+            row.addStretch(1)
+            row.addWidget(status)
+            self.checklist_layout.addLayout(row)
+            self._ms_row_status = status
+
         self._update_instruction()
         self._timer.start()
         self.show()
@@ -139,9 +160,13 @@ class _PeakPanel(QWidget):
     def _update_instruction(self) -> None:
         axis = self._current_axis()
         if axis is None:
+            # Ministick-Phase
+            if self._ms_axes and not self._ms_done:
+                self.instruction.setText(i18n.t("calib2.peak_instr_ministick"))
+                self.sub.setText(i18n.t("calib2.peak_instr_sub"))
             return
         pos   = self._idx + 1
-        total = len(self.axes)
+        total = len(self.axes) + (1 if self._ms_axes else 0)
         if self._phase == "min":
             self.instruction.setText(
                 i18n.t("calib2.peak_instr_min", pos=pos, total=total, label=axis.label)
@@ -155,7 +180,10 @@ class _PeakPanel(QWidget):
     def _poll(self) -> None:
         axis = self._current_axis()
         if axis is None:
+            # Ministick-Phase
+            self._poll_ministick()
             return
+
         tracker = self.trackers.get(axis.code)
         if tracker is None:
             return
@@ -176,6 +204,35 @@ class _PeakPanel(QWidget):
         if self._confirm_count >= _PEAK_CONFIRM:
             self._confirm_count = 0
             self._advance()
+
+    def _poll_ministick(self) -> None:
+        """Prüft ob der Ministick alle vier Anschläge erreicht hat."""
+        if self._ms_done or not self._ms_axes:
+            return
+        for ax in self._ms_axes:
+            tracker = self.trackers.get(ax.code)
+            if tracker is None:
+                continue
+            span   = ax.info.span
+            margin = max(1, int(span * _PEAK_MARGIN_PCT))
+            if tracker.peak_min <= ax.info.minimum + margin:
+                self._ms_reached[ax.code][0] = True
+            if tracker.peak_max >= ax.info.maximum - margin:
+                self._ms_reached[ax.code][1] = True
+
+        all_done = all(
+            reached[0] and reached[1]
+            for reached in self._ms_reached.values()
+        )
+        if all_done:
+            self._ms_done = True
+            for ax in self._ms_axes:
+                tracker = self.trackers[ax.code]
+                self._results[ax.code] = (tracker.peak_min, tracker.peak_max)
+            if self._ms_row_status:
+                self._ms_row_status.setText(i18n.t("calib2.peak_status_done"))
+                self._ms_row_status.setStyleSheet("color: green;")
+            self._finish()
 
     def _advance(self) -> None:
         axis = self._current_axis()
@@ -200,7 +257,15 @@ class _PeakPanel(QWidget):
         self._phase = "min"
         self._confirm_count = 0
         if self._idx >= len(self.axes):
-            self._finish()
+            if self._ms_axes:
+                # Ministick-Phase starten
+                for ax in self._ms_axes:
+                    tracker = self.trackers.get(ax.code)
+                    if tracker is not None:
+                        tracker.reset_peaks()
+                self._update_instruction()
+            else:
+                self._finish()
         else:
             axis = self.axes[self._idx]
             tracker = self.trackers.get(axis.code)
@@ -211,6 +276,13 @@ class _PeakPanel(QWidget):
     def _skip_axis(self) -> None:
         axis = self._current_axis()
         if axis is None:
+            # Ministick-Phase überspringen
+            if self._ms_axes and not self._ms_done:
+                self._ms_done = True
+                if self._ms_row_status:
+                    self._ms_row_status.setText(i18n.t("calib2.peak_status_skipped"))
+                    self._ms_row_status.setStyleSheet("color: gray;")
+                self._finish()
             return
         _, status = self.rows[self._idx]
         status.setText(i18n.t("calib2.peak_status_skipped"))
@@ -546,6 +618,25 @@ class Calib2Tab(QWidget):
                 self.table.item(row, 5).setText(
                     i18n.t("calib2.suggest_flat", flat=flat, fuzz=fuzz)
                 )
+
+        # Ministick: minimum/maximum aus Peaks setzen
+        for row, axis in enumerate(analog_axes):
+            if not is_ministick(axis.code) or axis.code not in results:
+                continue
+            tracker = self._trackers[axis.code]
+            new_min = tracker.peak_min
+            new_max = tracker.peak_max
+            center  = (new_min + new_max) // 2
+            fuzz    = tracker.suggested_fuzz()
+            self._pending[axis.code] = {
+                "minimum": new_min,
+                "maximum": new_max,
+                "value":   center,
+                "fuzz":    fuzz,
+            }
+            self.table.item(row, 5).setText(
+                i18n.t("calib2.suggest_range_extend", lo=new_min, hi=new_max)
+            )
 
         if self.device and self.device.writable:
             self.btn_save.setEnabled(bool(self._pending))
