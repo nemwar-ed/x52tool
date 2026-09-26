@@ -258,8 +258,9 @@ class Position2DWidget(QWidget):
         info = axis.info
         if info.span == 0:
             return 0.5
-        shown = display_value(axis.code, info, value)
-        return min(1.0, max(0.0, (shown - info.minimum) / info.span))
+        shown       = display_value(axis.code, info, value)
+        shown_center = display_value(axis.code, info, info.value)
+        return min(1.0, max(0.0, 0.5 + (shown - shown_center) / info.span))
 
     def paintEvent(self, _event) -> None:  # noqa: N802
         pal = self.palette()
