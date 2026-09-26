@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..axis_type import AxisKind, axis_kind, has_center
+from ..axis_type import AxisKind, axis_kind, has_center, is_ministick
 from ..device import Axis, X52Device
 from ..noise import NoiseTracker
 from .. import i18n
@@ -97,7 +97,7 @@ class _PeakPanel(QWidget):
 
     def start(self, axes: list[Axis], trackers: dict[int, NoiseTracker]) -> None:
         """Startet eine neue Messung."""
-        self.axes     = [ax for ax in axes if not ax.is_digital]
+        self.axes     = [ax for ax in axes if not ax.is_digital and not is_ministick(ax.code)]
         self.trackers = trackers
         self._results = {}
         self._idx     = 0
@@ -348,7 +348,7 @@ class Calib2Tab(QWidget):
         used_codes: set[int] = set()
         self.axes_panel.set_device(by_code, used_codes)
 
-        analog_axes = [ax for ax in device.axes if not ax.is_digital]
+        analog_axes = [ax for ax in device.axes if not ax.is_digital or is_ministick(ax.code)]
         self.table.setRowCount(len(analog_axes))
         for row, axis in enumerate(analog_axes):
             self._trackers[axis.code] = NoiseTracker(initial=axis.info.value)
@@ -371,7 +371,7 @@ class Calib2Tab(QWidget):
 
         self.axes_panel.refresh(state.axes)
 
-        analog_axes = [ax for ax in self.device.axes if not ax.is_digital]
+        analog_axes = [ax for ax in self.device.axes if not ax.is_digital or is_ministick(ax.code)]
         for row, axis in enumerate(analog_axes):
             tracker = self._trackers.get(axis.code)
             if tracker is None:
@@ -410,6 +410,14 @@ class Calib2Tab(QWidget):
             else:
                 self.table.item(row, 5).setText(i18n.t("calib2.suggest_range_ok"))
                 self._pending.pop(axis.code, None)
+        elif is_ministick(axis.code):
+            # Ministick: fuzz vorschlagen + Mittelpunkt aus Rauschfenster
+            fuzz = tracker.suggested_fuzz()
+            center = tracker.noise_min + tracker.noise_range // 2
+            self.table.item(row, 5).setText(
+                i18n.t("calib2.suggest_fuzz", fuzz=fuzz)
+            )
+            self._pending[axis.code] = {"fuzz": fuzz, "value": center}
         else:
             fuzz = tracker.suggested_fuzz()
             if axis.code in self._peak_results:
@@ -478,9 +486,9 @@ class Calib2Tab(QWidget):
         if not results:
             return
 
-        analog_axes = [ax for ax in self.device.axes if not ax.is_digital]
+        analog_axes = [ax for ax in self.device.axes if not ax.is_digital or is_ministick(ax.code)]
         for row, axis in enumerate(analog_axes):
-            if axis.code not in results:
+            if is_ministick(axis.code) or axis.code not in results:
                 continue
             tracker = self._trackers[axis.code]
             kind = axis_kind(axis.code)
@@ -517,6 +525,8 @@ class Calib2Tab(QWidget):
                 info.flat = vals["flat"]
             if "fuzz" in vals:
                 info.fuzz = vals["fuzz"]
+            if "value" in vals:
+                info.value = vals["value"]
             if "minimum" in vals:
                 info.minimum = vals["minimum"]
             if "maximum" in vals:

@@ -76,3 +76,13 @@ def hardware_default(code: int) -> tuple[int, int, int, int, int, int] | None:
     None wenn der Code unbekannt ist.
     """
     return _HW_DEFAULTS.get(code)
+
+
+# Ministick-Achsen als eigene Konstante – für gezielte Ausnahmen
+# ohne DIGITAL_AXES zu verändern.
+MINISTICK_AXES: frozenset[int] = frozenset({0x28, 0x29})  # ABS_MISC, ABS_MISC_Y
+
+
+def is_ministick(code: int) -> bool:
+    """True wenn die Achse zum Ministick gehört (ABS_MISC / ABS_MISC_Y)."""
+    return code in MINISTICK_AXES
