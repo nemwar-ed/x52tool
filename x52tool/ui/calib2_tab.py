@@ -319,7 +319,7 @@ class Calib2Tab(QWidget):
         if device is None:
             self.status.setText(i18n.t("calib2.status_no_device"))
             used: set[int] = set()
-            self.axes_panel.set_device({}, used)
+            self.axes_panel.set_device({}, used, show_ministick=True)
             return
 
         if device.writable:
@@ -346,7 +346,7 @@ class Calib2Tab(QWidget):
 
         by_code = {ax.code: ax for ax in device.axes}
         used_codes: set[int] = set()
-        self.axes_panel.set_device(by_code, used_codes)
+        self.axes_panel.set_device(by_code, used_codes, show_ministick=True)
 
         analog_axes = [ax for ax in device.axes if not ax.is_digital or is_ministick(ax.code)]
         self.table.setRowCount(len(analog_axes))
