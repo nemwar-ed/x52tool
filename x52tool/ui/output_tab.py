@@ -9,7 +9,7 @@ korrigieren, speichern.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSlider,
     QVBoxLayout,
@@ -56,7 +56,7 @@ class OutputTab(QWidget):
         layout.addWidget(self._build_mfd())
         layout.addWidget(self._build_clutch())
         layout.addWidget(self._build_backend())
-        layout.addWidget(self._build_log(), 1)
+        layout.addWidget(self._build_test())
 
     def _build_leds(self) -> QGroupBox:
         box = QGroupBox(i18n.t("output.group_leds"))
@@ -181,16 +181,119 @@ class OutputTab(QWidget):
         form.addRow(row)
         return box
 
-    def _build_log(self) -> QGroupBox:
-        box = QGroupBox(i18n.t("output.group_log"))
-        self.log = QPlainTextEdit()
-        self.log.setReadOnly(True)
-        font = self.log.font()
-        font.setFamily("monospace")
-        self.log.setFont(font)
-        layout = QVBoxLayout(box)
-        layout.addWidget(self.log)
+    def _build_test(self) -> QGroupBox:
+        box = QGroupBox(i18n.t("output.group_test"))
+        outer = QVBoxLayout(box)
+
+        row = QHBoxLayout()
+        row.addStretch(1)
+
+        self.btn_test_all = QPushButton(i18n.t("output.btn_test_all"))
+        self.btn_test_all.clicked.connect(self._start_full_test)
+        row.addWidget(self.btn_test_all)
+
+        self.test_progress = QProgressBar()
+        self.test_progress.setRange(0, 100)
+        self.test_progress.setValue(0)
+        self.test_progress.setTextVisible(True)
+        self.test_progress.setFixedWidth(300)
+        row.addWidget(self.test_progress)
+
+        row.addStretch(1)
+        outer.addLayout(row)
         return box
+
+    # -- Volltest ----------------------------------------------------------
+
+    def _build_test_steps(self) -> list:
+        """Baut die Liste aller Testschritte auf."""
+        steps = []
+        leds  = PRO_LEDS()
+
+        # Flackern: Helligkeit auf 0, dann 100
+        steps.append(("brightness", "mfd",  0))
+        steps.append(("brightness", "led",  0))
+        steps.append(("brightness", "mfd",  128))
+        steps.append(("brightness", "led",  128))
+
+        # Alle LEDs aus
+        for key, _label, _states in leds:
+            steps.append(("led", key, "off"))
+
+        # LED-Sweep – langsam (eine LED nach der anderen, alle Farben)
+        for key, _label, states in leds:
+            for state in states[1:]:
+                steps.append(("led", key, state))
+            steps.append(("led", key, "off"))
+
+        # MFD leeren
+        for line in range(MFD_LINES):
+            steps.append(("mfd", line, ""))
+
+        # MFD Zeichentest: Zeile für Zeile, Zeichen für Zeichen
+        # abwechselnd Vollblock (0xFF = chr(255)) und Rahmen (chr(0))
+        for line in range(MFD_LINES):
+            for col in range(MFD_WIDTH):
+                # Zeile aufbauen: bisherige Zeichen + neues Zeichen
+                # Vollblock = '\xff', leeres Zeichen = ' '
+                char = "\xff" if (col % 2 == 0) else " "
+                text = " " * col + char
+                steps.append(("mfd", line, text.ljust(MFD_WIDTH)))
+
+        # MFD leeren am Ende
+        for line in range(MFD_LINES):
+            steps.append(("mfd", line, ""))
+
+        return steps
+
+    def _start_full_test(self) -> None:
+        if not self.backend.available:
+            return
+        self._test_steps = self._build_test_steps()
+        self._test_idx   = 0
+        self._test_total = len(self._test_steps)
+        self.btn_test_all.setEnabled(False)
+        self.test_progress.setValue(0)
+
+        self._test_timer = QTimer(self)
+        self._test_timer.timeout.connect(self._run_test_step)
+        self._test_timer.start(80)  # 80ms pro Schritt für LED-Sweep; Flackern schneller
+
+    def _run_test_step(self) -> None:
+        if self._test_idx >= self._test_total:
+            self._test_timer.stop()
+            self.test_progress.setValue(100)
+            self.btn_test_all.setEnabled(True)
+            return
+
+        step = self._test_steps[self._test_idx]
+        kind = step[0]
+
+        if kind == "brightness":
+            self.backend.set_brightness(step[1], step[2])
+            # Flackern: erste 4 Schritte schneller
+            if self._test_idx < 4:
+                self._test_timer.setInterval(80)
+            else:
+                self._test_timer.setInterval(80)
+        elif kind == "led":
+            self.backend.set_led(step[1], step[2])
+            self._test_timer.setInterval(180)   # langsamer als bisheriger Sweep
+        elif kind == "mfd":
+            self.backend.set_mfd_line(step[1], step[2])
+            self._test_timer.setInterval(80)
+
+        self._test_idx += 1
+        pct = int(self._test_idx / self._test_total * 100)
+        self.test_progress.setValue(pct)
+
+    # -- Protokoll (vereinfacht, kein UI mehr) -----------------------------
+
+    def _log_one(self, result: CommandResult) -> None:
+        pass  # Log-UI entfernt; Fehler werden ignoriert
+
+    def _log_many(self, results: list[CommandResult]) -> None:
+        pass  # Log-UI entfernt
 
     # -- Aktionen ----------------------------------------------------------
 
@@ -251,7 +354,6 @@ class OutputTab(QWidget):
         mfd_t   = self.edit_mfd.text()
         bri_t   = self.edit_bri.text()
         clutch_t = self.edit_clutch.text()
-        log_text = self.log.toPlainText()
         clutch_checked = self.clutch_checkbox.isChecked()
         led_states = {k: combo.currentText() for k, combo in self._led_boxes.items()}
 
@@ -273,7 +375,7 @@ class OutputTab(QWidget):
         layout.addWidget(self._build_mfd())
         layout.addWidget(self._build_clutch())
         layout.addWidget(self._build_backend())
-        layout.addWidget(self._build_log(), 1)
+        layout.addWidget(self._build_test())
 
         # Zustand wiederherstellen
         self.edit_binary.setText(binary)
@@ -281,7 +383,6 @@ class OutputTab(QWidget):
         self.edit_mfd.setText(mfd_t)
         self.edit_bri.setText(bri_t)
         self.edit_clutch.setText(clutch_t)
-        self.log.setPlainText(log_text)
         self.clutch_checkbox.blockSignals(True)
         self.clutch_checkbox.setChecked(clutch_checked)
         self.clutch_checkbox.blockSignals(False)
