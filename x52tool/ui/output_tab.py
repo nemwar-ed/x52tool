@@ -248,12 +248,14 @@ class OutputTab(QWidget):
         for line in range(MFD_LINES):
             steps.append(("mfd", line, ""))
 
-        # --- MFD Zeichentest: Zeile für Zeile, Zeichen für Zeichen ---
-        for line in range(MFD_LINES):
-            current = [" "] * MFD_WIDTH
-            for col in range(MFD_WIDTH):
-                current[col] = "\xff" if col % 2 == 0 else " "
-                steps.append(("mfd", line, "".join(current)))
+        # --- MFD Zeichentest – ASCII-Zeilen ---
+        mfd_test_lines = [
+            "ABCDEFGHIJKLMNOP",
+            "abcdefghijklmnop",
+            "0123456789!?+-.,",
+        ]
+        for line, text in enumerate(mfd_test_lines):
+            steps.append(("mfd", line, text))
 
         # --- MFD leeren ---
         for line in range(MFD_LINES):

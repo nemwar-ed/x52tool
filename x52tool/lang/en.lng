@@ -248,5 +248,5 @@ peak_ministick_label = Ministick (X + Y)
 peak_instr_ministick = Move the ministick to its limits in all directions.
 peak_btn_skip        = Skip Axis
 peak_btn_abort       = Abort
-group_test           = Self-Test
-btn_test_all         = Start Self-Test
+group_test           = LED / MFD Test
+btn_test_all         = Start Test
