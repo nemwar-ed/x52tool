@@ -150,6 +150,11 @@ range_verdict_bad    = kaum bewegt oder defekt
 [output]
 status_available     = Ausgabe geht über {binary}. Läuft der Daemon x52d, sollte hier dessen Client stehen – zwei Prozesse gleichzeitig auf MFD und LEDs verträgt das Gerät nicht.
 status_unavailable   = Kein libx52-CLI gefunden. LEDs und MFD des X52 Pro laufen nicht über evdev, sondern über USB-Control-Transfers – dafür wird libx52 gebraucht. Unten „Programm suchen" oder den Pfad eintragen.
+group_brightness     = Helligkeit
+label_brightness_led = LED-Helligkeit
+label_brightness_mfd = MFD-Helligkeit
+group_test           = LED / MFD Test
+btn_test_all         = Test starten
 group_leds           = LEDs
 btn_sweep            = Alle LEDs durchtesten
 btn_all_on           = Alle an
@@ -248,5 +253,3 @@ peak_ministick_label = Ministick (X + Y)
 peak_instr_ministick = Ministick in alle Richtungen bis zum Anschlag bewegen.
 peak_btn_skip        = Achse überspringen
 peak_btn_abort       = Abbrechen
-group_test           = LED / MFD Test
-btn_test_all         = Test starten
