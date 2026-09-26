@@ -325,12 +325,16 @@ class Position2DWidget(QWidget):
         painter.drawEllipse(int(cx - r), int(cy - r), r * 2, r * 2)
 
         x_info, y_info = self.x_axis.info, self.y_axis.info
-        x_shown = display_value(self.x_axis.code, x_info, self.x_value)
-        y_shown = display_value(self.y_axis.code, y_info, self.y_value)
-        # Anzeige relativ zum kalibrierten Ruhewert (info.value), nicht centre
-        x_offset = x_shown - display_value(self.x_axis.code, x_info, x_info.value)
-        y_offset = y_shown - display_value(self.y_axis.code, y_info, y_info.value)
-        text = f"X: {x_offset:+d}   Y: {y_offset:+d}"
+        x_shown  = display_value(self.x_axis.code, x_info, self.x_value)
+        y_shown  = display_value(self.y_axis.code, y_info, self.y_value)
+        x_center = display_value(self.x_axis.code, x_info, x_info.value)
+        y_center = display_value(self.y_axis.code, y_info, y_info.value)
+        # Offset als % relativ zum halben Achsenbereich – immer symmetrisch
+        x_half = x_info.span / 2 or 1
+        y_half = y_info.span / 2 or 1
+        x_pct = max(-100, min(100, int(round((x_shown - x_center) / x_half * 100))))
+        y_pct = max(-100, min(100, int(round((y_shown - y_center) / y_half * 100))))
+        text = f"X: {x_pct:+d}%   Y: {y_pct:+d}%"
         painter.setPen(QPen(muted))
         painter.drawText(
             QRect(0, self.height() - value_h, self.width(), value_h),
