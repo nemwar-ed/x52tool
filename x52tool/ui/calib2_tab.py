@@ -395,7 +395,15 @@ class Calib2Tab(QWidget):
         noise_pct = (noise / axis.info.span * 100) if axis.info.span > 0 else 0
         self.table.item(row, 4).setText(f"{noise}  ({noise_pct:.1f} %)")
 
-        if kind == AxisKind.FREE_SLIDER:
+        if is_ministick(axis.code):
+            # Ministick: fuzz vorschlagen + Mittelpunkt aus Rauschfenster
+            fuzz = tracker.suggested_fuzz()
+            center = tracker.noise_min + tracker.noise_range // 2
+            self.table.item(row, 5).setText(
+                i18n.t("calib2.suggest_fuzz", fuzz=fuzz)
+            )
+            self._pending[axis.code] = {"fuzz": fuzz, "value": center}
+        elif kind == AxisKind.FREE_SLIDER:
             over_min = tracker.peak_min < axis.info.minimum
             over_max = tracker.peak_max > axis.info.maximum
             if over_min or over_max:
@@ -410,14 +418,6 @@ class Calib2Tab(QWidget):
             else:
                 self.table.item(row, 5).setText(i18n.t("calib2.suggest_range_ok"))
                 self._pending.pop(axis.code, None)
-        elif is_ministick(axis.code):
-            # Ministick: fuzz vorschlagen + Mittelpunkt aus Rauschfenster
-            fuzz = tracker.suggested_fuzz()
-            center = tracker.noise_min + tracker.noise_range // 2
-            self.table.item(row, 5).setText(
-                i18n.t("calib2.suggest_fuzz", fuzz=fuzz)
-            )
-            self._pending[axis.code] = {"fuzz": fuzz, "value": center}
         else:
             fuzz = tracker.suggested_fuzz()
             if axis.code in self._peak_results:

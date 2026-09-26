@@ -765,8 +765,9 @@ class AxesPanel(QWidget):
             from .. import i18n
             x_axis = by_code[ecodes.ABS_MISC]
             y_axis = by_code[ABS_MISC_Y]
-            from PyQt6.QtWidgets import QGroupBox, QVBoxLayout
+            from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QSizePolicy
             ms_box = QGroupBox(i18n.t("live.group_ministick"))
+            ms_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
             ms_layout = QVBoxLayout(ms_box)
             pos = Position2DWidget(i18n.t("live.ministick_label"), x_axis, y_axis)
             self.position_widgets.append((x_axis.code, y_axis.code, pos))
@@ -775,6 +776,7 @@ class AxesPanel(QWidget):
             ms_layout.addWidget(pos, 0, Qt.AlignmentFlag.AlignHCenter)
             ms_layout.addStretch(1)
             self._layout.addWidget(ms_box, 0, 3, 4, 1)
+            self._layout.setColumnStretch(3, 1)
 
     def refresh(self, axes: dict[int, int]) -> None:
         """Aktualisiert alle Balken und 2D-Felder mit neuen Rohwerten."""
