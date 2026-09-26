@@ -327,6 +327,23 @@ class Calib2Tab(QWidget):
         else:
             self.status.setText(i18n.t("calib2.status_ro", path=device.path))
 
+        # Ministick-Achsen beim Start mit fuzz=1 initialisieren
+        # (DIGITAL_AXES werden nicht über die normale Kalibrierung erfasst)
+        if device.writable:
+            from ..axis_type import hardware_default
+            from ..device import AbsInfo
+            ministick_changes = {}
+            for axis in device.axes:
+                if axis.is_digital:
+                    hw = hardware_default(axis.code)
+                    if hw is not None:
+                        ministick_changes[axis.code] = AbsInfo(*hw)
+            if ministick_changes:
+                try:
+                    device.apply_absinfo(ministick_changes)
+                except OSError:
+                    pass
+
         by_code = {ax.code: ax for ax in device.axes}
         used_codes: set[int] = set()
         self.axes_panel.set_device(by_code, used_codes)

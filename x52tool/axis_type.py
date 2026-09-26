@@ -64,6 +64,8 @@ _HW_DEFAULTS: dict[int, tuple[int, int, int, int, int, int]] = {
     ecodes.ABS_RY:       (0,   0,  255, 0, 0, 0),  # Rotary 2
     ecodes.ABS_Z:        (0,   0,  255, 0, 0, 0),  # Schubhebel (Hardware: 0-255)
     ecodes.ABS_THROTTLE: (0,   0,  255, 0, 0, 0),  # Schieberegler
+    ecodes.ABS_MISC:     (8,   0,   15, 1, 0, 0),  # Ministick X (fuzz=1: +/-1 Offset unterdrücken)
+    0x29:                (8,   0,   15, 1, 0, 0),  # Ministick Y (ABS_MISC_Y)
 }
 
 
