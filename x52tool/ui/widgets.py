@@ -696,23 +696,8 @@ class AxesPanel(QWidget):
         self.bars: dict[int, AxisBar] = {}
         self.position_widgets: list[tuple[int, int, Position2DWidget]] = []
         self._layout = QGridLayout(self)
-        self._show_ministick: bool = False
-
-    def set_device(
-        self,
-        by_code: dict[int, Axis],
-        used_codes: set[int],
-        show_ministick: bool = False,
-    ) -> None:
-        """Baut den Block für das übergebene Gerät auf.
-
-        Args:
-            by_code:        Achsen des Geräts, indiziert nach ABS-Code.
-            used_codes:     Wird um alle hier verwendeten Codes erweitert.
-            show_ministick: Ministick-2D-Feld zusätzlich anzeigen
-                            (für Kalibrierungs-Tab).
-        """
-        self._show_ministick = show_ministick
+    def set_device(self, by_code: dict[int, Axis], used_codes: set[int]) -> None:
+        """Baut den Block für das übergebene Gerät auf."""
         while self._layout.count():
             item = self._layout.takeAt(0)
             w = item.widget()
@@ -760,23 +745,6 @@ class AxesPanel(QWidget):
 
         self._layout.setColumnStretch(2, 1)
 
-        # Ministick-Block (optional, für Kalibrierungs-Tab)
-        if show_ministick and ecodes.ABS_MISC in by_code and ABS_MISC_Y in by_code:
-            from .. import i18n
-            x_axis = by_code[ecodes.ABS_MISC]
-            y_axis = by_code[ABS_MISC_Y]
-            from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QSizePolicy
-            ms_box = QGroupBox(i18n.t("live.group_ministick"))
-            ms_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-            ms_layout = QVBoxLayout(ms_box)
-            pos = Position2DWidget(i18n.t("live.ministick_label"), x_axis, y_axis)
-            self.position_widgets.append((x_axis.code, y_axis.code, pos))
-            used_codes.update((x_axis.code, y_axis.code))
-            ms_layout.addStretch(1)
-            ms_layout.addWidget(pos, 0, Qt.AlignmentFlag.AlignHCenter)
-            ms_layout.addStretch(1)
-            self._layout.addWidget(ms_box, 0, 3, 4, 1)
-            self._layout.setColumnStretch(3, 1)
 
     def refresh(self, axes: dict[int, int]) -> None:
         """Aktualisiert alle Balken und 2D-Felder mit neuen Rohwerten."""

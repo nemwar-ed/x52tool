@@ -23,11 +23,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from evdev import ecodes
+
 from ..axis_type import AxisKind, axis_kind, has_center, is_ministick
-from ..device import Axis, X52Device
+from ..device import ABS_MISC_Y, Axis, X52Device
 from ..noise import NoiseTracker
 from .. import i18n
-from .widgets import AxesPanel
+from .widgets import AxesPanel, Position2DWidget
 
 _PEAK_MARGIN_PCT = 0.03
 _PEAK_CONFIRM    = 5
@@ -255,6 +257,15 @@ class Calib2Tab(QWidget):
         axes_group_layout = QVBoxLayout(axes_group)
         axes_group_layout.addWidget(self.axes_panel)
 
+        # Ministick-Box – wird in set_device befüllt
+        self.ministick_box = QGroupBox(i18n.t("live.group_ministick"))
+        self.ministick_box_layout = QVBoxLayout(self.ministick_box)
+        self.ministick_pos: Position2DWidget | None = None
+
+        top_row = QHBoxLayout()
+        top_row.addWidget(axes_group, 3)
+        top_row.addWidget(self.ministick_box, 1)
+
         self.table = QTableWidget(0, 6)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -287,7 +298,7 @@ class Calib2Tab(QWidget):
         action_row.addWidget(self.btn_save)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(axes_group)
+        layout.addLayout(top_row)
         layout.addWidget(self.table, 1)
         layout.addWidget(self.peak_panel)
         layout.addWidget(self.status)
@@ -319,7 +330,8 @@ class Calib2Tab(QWidget):
         if device is None:
             self.status.setText(i18n.t("calib2.status_no_device"))
             used: set[int] = set()
-            self.axes_panel.set_device({}, used, show_ministick=True)
+            self.axes_panel.set_device({}, used)
+            self.ministick_box.hide()
             return
 
         if device.writable:
@@ -346,7 +358,29 @@ class Calib2Tab(QWidget):
 
         by_code = {ax.code: ax for ax in device.axes}
         used_codes: set[int] = set()
-        self.axes_panel.set_device(by_code, used_codes, show_ministick=True)
+        self.axes_panel.set_device(by_code, used_codes)
+
+        # Ministick-Box befüllen
+        while self.ministick_box_layout.count():
+            item = self.ministick_box_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        self.ministick_pos = None
+        if ecodes.ABS_MISC in by_code and ABS_MISC_Y in by_code:
+            x_axis = by_code[ecodes.ABS_MISC]
+            y_axis = by_code[ABS_MISC_Y]
+            self.ministick_pos = Position2DWidget(
+                i18n.t("live.ministick_label"), x_axis, y_axis
+            )
+            self.ministick_box_layout.addStretch(1)
+            self.ministick_box_layout.addWidget(
+                self.ministick_pos, 0, Qt.AlignmentFlag.AlignHCenter
+            )
+            self.ministick_box_layout.addStretch(1)
+            self.ministick_box.show()
+        else:
+            self.ministick_box.hide()
 
         analog_axes = [ax for ax in device.axes if not ax.is_digital or is_ministick(ax.code)]
         self.table.setRowCount(len(analog_axes))
@@ -370,6 +404,11 @@ class Calib2Tab(QWidget):
             return
 
         self.axes_panel.refresh(state.axes)
+        if self.ministick_pos is not None:
+            x = state.axes.get(ecodes.ABS_MISC)
+            y = state.axes.get(ABS_MISC_Y)
+            if x is not None and y is not None:
+                self.ministick_pos.set_values(x, y)
 
         analog_axes = [ax for ax in self.device.axes if not ax.is_digital or is_ministick(ax.code)]
         for row, axis in enumerate(analog_axes):
