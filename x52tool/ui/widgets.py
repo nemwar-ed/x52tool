@@ -326,7 +326,10 @@ class Position2DWidget(QWidget):
         x_info, y_info = self.x_axis.info, self.y_axis.info
         x_shown = display_value(self.x_axis.code, x_info, self.x_value)
         y_shown = display_value(self.y_axis.code, y_info, self.y_value)
-        text = f"X: {x_shown - x_info.centre:+d}   Y: {y_shown - y_info.centre:+d}"
+        # Anzeige relativ zum kalibrierten Ruhewert (info.value), nicht centre
+        x_offset = x_shown - display_value(self.x_axis.code, x_info, x_info.value)
+        y_offset = y_shown - display_value(self.y_axis.code, y_info, y_info.value)
+        text = f"X: {x_offset:+d}   Y: {y_offset:+d}"
         painter.setPen(QPen(muted))
         painter.drawText(
             QRect(0, self.height() - value_h, self.width(), value_h),

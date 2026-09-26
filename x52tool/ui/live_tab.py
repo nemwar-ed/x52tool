@@ -59,9 +59,6 @@ class LiveTab(QWidget):
         self.button_tiles: list[ButtonTile] = []
         self.rockers: list[RockerTriplet] = []
 
-        self.hint = QLabel(i18n.t("live.hint_no_device"))
-        self.hint.setWordWrap(True)
-
         self.body = QWidget()
         self.body_layout = QVBoxLayout(self.body)
         self.body_layout.setContentsMargins(8, 8, 8, 8)
@@ -72,7 +69,6 @@ class LiveTab(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.hint)
         layout.addWidget(scroll, 1)
 
     # -- Aufbau ------------------------------------------------------------
@@ -92,10 +88,8 @@ class LiveTab(QWidget):
                 widget.deleteLater()
 
         if device is None:
-            self.hint.setText(i18n.t("live.hint_no_device"))
             return
 
-        self.hint.setText(i18n.t("live.hint_active"))
 
         by_code: dict[int, Axis] = {ax.code: ax for ax in device.axes}
         used_codes: set[int] = set()
