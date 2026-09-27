@@ -9,147 +9,31 @@ from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QMainWindow,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QTabWidget,
-    QTreeWidget,
-    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from .. import __version__, i18n
 from ..config import Settings
-from ..device import DeviceState, X52Device, find_related_nodes, scan
+from ..device import DeviceState, X52Device, scan
+from ..logger import get_logger
 from .calib2_tab import Calib2Tab
 from .live_tab import LiveTab
 from .output_tab import OutputTab
 from .settings_tab import SettingsTab
 
+log = get_logger("main_window")
+
 UI_REFRESH_MS = 33  # ~30 Hz
-
-
-class DeviceTab(QWidget):
-    """Uebersicht und Auswahl."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.table = QTableWidget(0, 2)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
-        self.table.verticalHeader().setDefaultSectionSize(24)
-        self.table.setMinimumHeight(360)
-
-        self.tree_label = QLabel()
-        self.tree = QTreeWidget()
-        self.tree.setRootIsDecorated(True)
-        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.tree.setMaximumHeight(180)
-
-        self.notes = QLabel()
-        self.notes.setWordWrap(True)
-        self.notes.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.table)
-        layout.addWidget(self.tree_label)
-        layout.addWidget(self.tree, 1)
-        layout.addWidget(self.notes)
-
-        self._device: X52Device | None = None
-        self._denied: list[str] = []
-        self._errors: list[str] = []
-        self._retranslate_headers()
-
-    def _retranslate_headers(self) -> None:
-        self.table.setHorizontalHeaderLabels([
-            i18n.t("device.col_property"),
-            i18n.t("device.col_value"),
-        ])
-        self.tree_label.setText(i18n.t("device.tree_label"))
-        self.tree.setHeaderLabels([
-            i18n.t("device.tree_col_node"),
-            i18n.t("device.tree_col_role"),
-            i18n.t("device.tree_col_evtypes"),
-        ])
-
-    def show_device(self, device: X52Device | None, denied: list[str], errors: list[str] | None = None) -> None:
-        self._device = device
-        self._denied = denied
-        self._errors = errors or []
-        self._render()
-
-    def _render(self) -> None:
-        device = self._device
-        denied = self._denied
-        errors = self._errors
-
-        rows = device.describe() if device else []
-        self.table.setRowCount(len(rows))
-        for row, (key, value) in enumerate(rows):
-            self.table.setItem(row, 0, QTableWidgetItem(key))
-            self.table.setItem(row, 1, QTableWidgetItem(value))
-
-        self.tree.clear()
-        notes: list[str] = []
-        if device is None:
-            notes.append(i18n.t("device.note_no_device"))
-            self.tree_label.setVisible(False)
-            self.tree.setVisible(False)
-        else:
-            self.tree_label.setVisible(True)
-            self.tree.setVisible(True)
-
-            root = QTreeWidgetItem([device.known_name or device.name, "", ""])
-            root_font = root.font(0)
-            root_font.setBold(True)
-            root.setFont(0, root_font)
-            self.tree.addTopLevelItem(root)
-
-            used = QTreeWidgetItem(
-                [device.path, i18n.t("device.tree_used_label"), "EV_ABS, EV_KEY"]
-            )
-            root.addChild(used)
-
-            try:
-                related = find_related_nodes(device.vendor, device.product, device.path, device.name)
-            except OSError:
-                related = []
-            for node in related:
-                root.addChild(QTreeWidgetItem([node.path, node.role, node.ev_types]))
-            self.tree.expandAll()
-
-            notes.append(i18n.t("device.note_multi_node") if related else i18n.t("device.note_single_node"))
-            if not device.known_name:
-                notes.append(i18n.t("device.note_unknown_id"))
-            if not device.writable:
-                notes.append(i18n.t("device.note_readonly", path=device.path))
-
-        if denied:
-            notes.append(i18n.t("device.note_denied", paths=", ".join(denied)))
-        if errors:
-            notes.append(i18n.t("device.note_errors", errors="\n".join(errors)))
-        self.notes.setText("\n\n".join(notes))
-
-    def retranslate(self) -> None:
-        self._retranslate_headers()
-        self._render()
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(None)
         self.resize(1000, 720)
 
         self.settings = Settings.load()
@@ -159,26 +43,22 @@ class MainWindow(QMainWindow):
         self._denied: list[str] = []
         self._errors: list[str] = []
 
+        # Geraetewahl (Picker bleibt oben – kompakte Zeile ohne Rescan-Button)
         self.picker = QComboBox()
         self.picker.setMinimumWidth(420)
         self.picker.currentIndexChanged.connect(self._on_pick)
-        self.btn_rescan = QPushButton()
-        self.btn_rescan.clicked.connect(self.rescan)
         self.label_device = QLabel()
 
         top = QHBoxLayout()
         top.addWidget(self.label_device)
         top.addWidget(self.picker, 1)
-        top.addWidget(self.btn_rescan)
 
-        self.tab_device   = DeviceTab()
         self.tab_live     = LiveTab()
         self.tab_calib2   = Calib2Tab(self.settings)
         self.tab_output   = OutputTab(self.settings)
         self.tab_settings = SettingsTab(settings=self.settings)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.tab_device,   "")
         self.tabs.addTab(self.tab_live,     "")
         self.tabs.addTab(self.tab_calib2,   "")
         self.tabs.addTab(self.tab_output,   "")
@@ -186,6 +66,7 @@ class MainWindow(QMainWindow):
 
         self.tab_calib2.calibrationChanged.connect(self.tab_live.refresh_calibration)
         self.tab_settings.languageChanged.connect(self._on_language_changed)
+        self.tab_settings.rescanRequested.connect(self.rescan)
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -214,16 +95,12 @@ class MainWindow(QMainWindow):
         self._retranslate_all()
 
     def _retranslate_own(self) -> None:
-        """Eigene Widgets des MainWindow neu beschriften."""
         self.setWindowTitle(i18n.t("main.window_title", version=__version__))
         self.label_device.setText(i18n.t("main.label_device"))
-        self.btn_rescan.setText(i18n.t("main.btn_rescan"))
-        self.tabs.setTabText(0, i18n.t("main.tab_device"))
-        self.tabs.setTabText(1, i18n.t("main.tab_live"))
-        self.tabs.setTabText(2, i18n.t("main.tab_calib2"))
-        self.tabs.setTabText(3, i18n.t("main.tab_output"))
-        self.tabs.setTabText(4, i18n.t("settings.tab_label"))
-        # Statusbar
+        self.tabs.setTabText(0, i18n.t("main.tab_live"))
+        self.tabs.setTabText(1, i18n.t("main.tab_calib2"))
+        self.tabs.setTabText(2, i18n.t("main.tab_output"))
+        self.tabs.setTabText(3, i18n.t("settings.tab_label"))
         if self.device is None:
             self.statusBar().showMessage(i18n.t("main.status_no_device"))
         else:
@@ -236,7 +113,6 @@ class MainWindow(QMainWindow):
 
     def _retranslate_all(self) -> None:
         self._retranslate_own()
-        self.tab_device.retranslate()
         self.tab_live.retranslate()
         self.tab_calib2.retranslate()
         self.tab_output.retranslate()
@@ -252,6 +128,12 @@ class MainWindow(QMainWindow):
         self._candidates = result.devices
         self._denied = result.denied
         self._errors = result.errors
+
+        # Hinweise ins Log
+        for path in self._denied:
+            log.warning("Kein Leserecht auf %s", path)
+        for msg in self._errors:
+            log.error("Gerätefehler: %s", msg)
 
         self.picker.blockSignals(True)
         self.picker.clear()
@@ -286,8 +168,15 @@ class MainWindow(QMainWindow):
             )
             self.notifier.activated.connect(self._drain)
             self.settings.last_device_path = device.path
+            log.info(
+                "Gerät ausgewählt: %s  USB-ID: %s  Pfad: %s  Schreibrecht: %s",
+                device.known_name or device.name,
+                device.usb_id,
+                device.path,
+                device.writable,
+            )
 
-        self.tab_device.show_device(device, self._denied, self._errors)
+        self.tab_settings.update_device(device)
         self.tab_live.set_device(device)
         self.tab_calib2.set_device(device)
 

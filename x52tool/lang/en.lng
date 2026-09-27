@@ -198,6 +198,7 @@ group_language       = Language
 btn_de               = German
 btn_en               = English
 hint_restart         = Restart recommended to fully apply the language change.
+group_device         = Device
 group_log            = Log Files
 btn_open_log         = Open Log
 btn_create_diag      = Create Diagnostic
