@@ -348,6 +348,11 @@ class Calib2Tab(QWidget):
         )
         self._retranslate_table_headers()
 
+        table_group = QGroupBox(i18n.t("calib2.group_axes"))
+        table_group_layout = QVBoxLayout(table_group)
+        table_group_layout.setContentsMargins(4, 4, 4, 4)
+        table_group_layout.addWidget(self.table)
+
         # Festes Mess-Panel – standardmäßig ausgeblendet
         self.peak_panel = _PeakPanel()
         self.peak_panel.finished.connect(self._on_peak_done)
@@ -372,7 +377,7 @@ class Calib2Tab(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addLayout(top_row)
-        layout.addWidget(self.table, 1)
+        layout.addWidget(table_group, 1)
         layout.addWidget(self.peak_panel)
         layout.addWidget(self.status)
         layout.addLayout(action_row)
