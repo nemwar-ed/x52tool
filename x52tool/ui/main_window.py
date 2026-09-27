@@ -34,7 +34,7 @@ UI_REFRESH_MS = 33  # ~30 Hz
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__(None)
-        self.resize(1000, 720)
+        self._initial_resize_done = False
 
         self.settings = Settings.load()
         self.device: X52Device | None = None
@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
         self._candidates: list[X52Device] = []
         self._retranslate_own()
         self.rescan()
+        self._fit_to_screen()
 
     # -- Sprache -----------------------------------------------------------
 
@@ -208,6 +209,25 @@ class MainWindow(QMainWindow):
             return
         if self.tabs.currentWidget() is self.tab_live:
             self.tab_live.refresh(self.state.axes, self.state.buttons)
+
+    # -- Fenstergröße ------------------------------------------------------
+
+    def _fit_to_screen(self) -> None:
+        """Fenster an natürliche Größe anpassen, maximal 95% des Bildschirms."""
+        self.adjustSize()
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        max_w = int(available.width()  * 0.95)
+        max_h = int(available.height() * 0.95)
+        w = min(self.width(),  max_w)
+        h = min(self.height(), max_h)
+        self.resize(w, h)
+        # Fenster mittig auf dem Bildschirm platzieren
+        x = available.x() + (available.width()  - w) // 2
+        y = available.y() + (available.height() - h) // 2
+        self.move(x, y)
 
     # -- Ende --------------------------------------------------------------
 
