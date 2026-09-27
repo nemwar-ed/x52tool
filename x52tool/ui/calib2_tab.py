@@ -375,12 +375,22 @@ class Calib2Tab(QWidget):
         action_row.addStretch(1)
         action_row.addWidget(self.btn_save)
 
+        self.body = QWidget()
+        body_layout = QVBoxLayout(self.body)
+        body_layout.setContentsMargins(8, 8, 8, 8)
+        body_layout.addLayout(top_row)
+        body_layout.addWidget(table_group, 1)
+        body_layout.addWidget(self.peak_panel)
+        body_layout.addWidget(self.status)
+        body_layout.addLayout(action_row)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.body)
+
         layout = QVBoxLayout(self)
-        layout.addLayout(top_row)
-        layout.addWidget(table_group, 1)
-        layout.addWidget(self.peak_panel)
-        layout.addWidget(self.status)
-        layout.addLayout(action_row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(scroll, 1)
 
     def _retranslate_table_headers(self) -> None:
         self.table.setHorizontalHeaderLabels([
