@@ -80,6 +80,8 @@ class _PeakPanel(QWidget):
 
         # Checkliste
         self.checklist_layout = QVBoxLayout()
+        self.checklist_layout.setContentsMargins(0, 0, 0, 0)
+        self.checklist_layout.setSpacing(2)
         self.rows: list[tuple[QLabel, QLabel]] = []
         box_layout.addLayout(self.checklist_layout)
 
@@ -127,11 +129,14 @@ class _PeakPanel(QWidget):
 
         for axis in self.axes:
             row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
             name   = QLabel(axis.label)
             status = QLabel(i18n.t("calib2.peak_status_pending"))
             status.setAlignment(Qt.AlignmentFlag.AlignRight)
-            row.addWidget(name)
-            row.addStretch(1)
+            status.setFixedWidth(110)
+            name.setStyleSheet("color: gray;")
+            status.setStyleSheet("color: gray;")
+            row.addWidget(name, 1)
             row.addWidget(status)
             self.checklist_layout.addLayout(row)
             self.rows.append((name, status))
@@ -140,14 +145,18 @@ class _PeakPanel(QWidget):
         self._ms_row_status: QLabel | None = None
         if self._ms_axes:
             row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
             name   = QLabel(i18n.t("calib2.peak_ministick_label"))
             status = QLabel(i18n.t("calib2.peak_status_pending"))
             status.setAlignment(Qt.AlignmentFlag.AlignRight)
-            row.addWidget(name)
-            row.addStretch(1)
+            status.setFixedWidth(110)
+            name.setStyleSheet("color: gray;")
+            status.setStyleSheet("color: gray;")
+            row.addWidget(name, 1)
             row.addWidget(status)
             self.checklist_layout.addLayout(row)
             self._ms_row_status = status
+            self._ms_row_name = name
 
         self._update_instruction()
         self._timer.start()
@@ -165,6 +174,7 @@ class _PeakPanel(QWidget):
             if self._ms_axes and not self._ms_done:
                 self.instruction.setText(i18n.t("calib2.peak_instr_ministick"))
                 self.sub.setText(i18n.t("calib2.peak_instr_sub"))
+                self._update_highlight(len(self.axes))
             return
         pos   = self._idx + 1
         total = len(self.axes) + (1 if self._ms_axes else 0)
@@ -177,6 +187,20 @@ class _PeakPanel(QWidget):
                 i18n.t("calib2.peak_instr_max", pos=pos, total=total, label=axis.label)
             )
         self.sub.setText(i18n.t("calib2.peak_instr_sub"))
+        self._update_highlight(self._idx)
+
+    def _update_highlight(self, active_idx: int) -> None:
+        """Aktive Zeile fett/weiß, erledigte grün, ausstehende grau."""
+        all_rows = list(self.rows)
+        if hasattr(self, "_ms_row_name") and self._ms_row_status is not None:
+            all_rows.append((self._ms_row_name, self._ms_row_status))
+        for i, (name, status) in enumerate(all_rows):
+            if i == active_idx:
+                name.setStyleSheet("font-weight: bold; color: white;")
+            elif status.styleSheet() == "color: green;":
+                name.setStyleSheet("color: green;")
+            else:
+                name.setStyleSheet("color: gray;")
 
     def _poll(self) -> None:
         axis = self._current_axis()
@@ -240,6 +264,7 @@ class _PeakPanel(QWidget):
         if axis is None:
             return
         _, status = self.rows[self._idx]
+        name, _ = self.rows[self._idx]
 
         if self._phase == "min":
             self._phase = "max"
@@ -251,6 +276,7 @@ class _PeakPanel(QWidget):
             self._results[axis.code] = (tracker.peak_min, tracker.peak_max)
             status.setText(i18n.t("calib2.peak_status_done"))
             status.setStyleSheet("color: green;")
+            name.setStyleSheet("color: green;")
             self._next_axis()
 
     def _next_axis(self) -> None:
@@ -348,7 +374,7 @@ class Calib2Tab(QWidget):
         )
         self._retranslate_table_headers()
 
-        table_group = QGroupBox(i18n.t("calib2.group_axes"))
+        table_group = QGroupBox(i18n.t("calib2.col_axis"))
         table_group_layout = QVBoxLayout(table_group)
         table_group_layout.setContentsMargins(4, 4, 4, 4)
         table_group_layout.addWidget(self.table)
