@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self._candidates: list[X52Device] = []
         self._retranslate_own()
         self.rescan()
-        self._fit_to_screen()
+        QTimer.singleShot(0, self._fit_to_screen)
 
     # -- Sprache -----------------------------------------------------------
 
