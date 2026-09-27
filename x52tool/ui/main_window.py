@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
         self.tab_live     = LiveTab()
         self.tab_calib2   = Calib2Tab(self.settings)
         self.tab_output   = OutputTab(self.settings)
-        self.tab_settings = SettingsTab()
+        self.tab_settings = SettingsTab(settings=self.settings)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.tab_device,   "")

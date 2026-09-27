@@ -16,6 +16,15 @@ import sys
 
 from .config import Settings
 from .device import X52Device, scan
+from .logger import get_logger, init as log_init
+
+
+def _get_version() -> str:
+    try:
+        from importlib.metadata import version
+        return version("x52tool")
+    except Exception:
+        return "?"
 
 
 def _list_devices() -> int:
@@ -78,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--apply", action="store_true", help="Gespeichertes Profil anwenden")
     parser.add_argument("--device", help="Event-Device, sonst alle passenden")
     args = parser.parse_args(argv)
+
+    log_init(_get_version())
 
     if args.list:
         return _list_devices()
