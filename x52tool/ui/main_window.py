@@ -222,7 +222,7 @@ class MainWindow(QMainWindow):
         max_w = int(available.width()  * 0.95)
         max_h = int(available.height() * 0.95)
         w = min(1100, max_w)
-        h = min(820,  max_h)
+        h = min(950,  max_h)
         self.resize(w, h)
         x = available.x() + (available.width()  - w) // 2
         y = available.y() + (available.height() - h) // 2
