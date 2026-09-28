@@ -28,6 +28,7 @@ class OutputTab(QWidget):
         self._led_boxes: dict[str, QComboBox] = {}
         self._build()
         self._refresh_availability()
+        self._load_mfd_settings()
 
     # -- Aufbau ------------------------------------------------------------
 
@@ -127,7 +128,7 @@ class OutputTab(QWidget):
             combo.setCurrentIndex(idx)
 
     def _apply_clock(self) -> None:
-        """Sendet clock- und date-Befehle ans Gerät."""
+        """Sendet clock- und date-Befehle ans Gerät und speichert die Einstellungen."""
         local = "local" if self.chk_local_time.isChecked() else "gmt"
         hr1   = "12hr" if self.chk_12h_clock1.isChecked() else "24hr"
         hr2   = "12hr" if self.chk_12h_clock2.isChecked() else "24hr"
@@ -142,6 +143,54 @@ class OutputTab(QWidget):
         self.backend.run_raw(["clock", local, hr1, date_fmt])
         self.backend.run_raw(["offset", "2", str(off2), hr2])
         self.backend.run_raw(["offset", "3", str(off3), hr3])
+
+        # Einstellungen speichern
+        mfd = self.settings.mfd
+        mfd.local_time = self.chk_local_time.isChecked()
+        mfd.clock1_12h = self.chk_12h_clock1.isChecked()
+        mfd.date_fmt   = self.combo_date_fmt.currentText()
+        mfd.offset2    = off2
+        mfd.clock2_12h = self.chk_12h_clock2.isChecked()
+        mfd.offset3    = off3
+        mfd.clock3_12h = self.chk_12h_clock3.isChecked()
+        try:
+            self.settings.save()
+        except OSError:
+            pass
+
+    def _load_mfd_settings(self) -> None:
+        """Lädt gespeicherte MFD-Einstellungen in die UI."""
+        mfd = self.settings.mfd
+
+        self.chk_local_time.blockSignals(True)
+        self.chk_12h_clock1.blockSignals(True)
+        self.combo_date_fmt.blockSignals(True)
+        self.combo_offset2.blockSignals(True)
+        self.chk_12h_clock2.blockSignals(True)
+        self.combo_offset3.blockSignals(True)
+        self.chk_12h_clock3.blockSignals(True)
+
+        self.chk_local_time.setChecked(mfd.local_time)
+        self.chk_12h_clock1.setChecked(mfd.clock1_12h)
+        idx = self.combo_date_fmt.findText(mfd.date_fmt)
+        if idx >= 0:
+            self.combo_date_fmt.setCurrentIndex(idx)
+        idx2 = self.combo_offset2.findData(mfd.offset2)
+        if idx2 >= 0:
+            self.combo_offset2.setCurrentIndex(idx2)
+        self.chk_12h_clock2.setChecked(mfd.clock2_12h)
+        idx3 = self.combo_offset3.findData(mfd.offset3)
+        if idx3 >= 0:
+            self.combo_offset3.setCurrentIndex(idx3)
+        self.chk_12h_clock3.setChecked(mfd.clock3_12h)
+
+        self.chk_local_time.blockSignals(False)
+        self.chk_12h_clock1.blockSignals(False)
+        self.combo_date_fmt.blockSignals(False)
+        self.combo_offset2.blockSignals(False)
+        self.chk_12h_clock2.blockSignals(False)
+        self.combo_offset3.blockSignals(False)
+        self.chk_12h_clock3.blockSignals(False)
 
     def _build_clutch(self) -> QGroupBox:
         box    = QGroupBox(i18n.t("output.group_clutch"))

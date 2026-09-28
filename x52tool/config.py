@@ -37,8 +37,21 @@ class BackendConfig:
 
 
 @dataclass
+class MfdConfig:
+    """MFD-Uhr- und Datumseinstellungen."""
+    local_time:  bool = False
+    clock1_12h:  bool = False
+    date_fmt:    str  = "DD-MM-YY"
+    offset2:     int  = 0   # GMT-Versatz in Minuten
+    clock2_12h:  bool = False
+    offset3:     int  = 0
+    clock3_12h:  bool = False
+
+
+@dataclass
 class Settings:
     backend: BackendConfig = field(default_factory=BackendConfig)
+    mfd: MfdConfig = field(default_factory=MfdConfig)
     # Kalibrierprofile je USB-ID: {"06a3:0762": {"0": {"flat": 512, ...}}}
     profiles: dict[str, dict[str, dict[str, int]]] = field(default_factory=dict)
     last_device_path: str = ""
@@ -69,9 +82,11 @@ class Settings:
         except (OSError, ValueError):
             return cls()
         backend = BackendConfig(**raw.pop("backend", {}))
+        mfd_raw = raw.pop("mfd", {})
+        mfd = MfdConfig(**{k: v for k, v in mfd_raw.items() if k in MfdConfig.__dataclass_fields__})
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
-        filtered = {k: v for k, v in raw.items() if k in known and k != "backend"}
-        return cls(backend=backend, **filtered)
+        filtered = {k: v for k, v in raw.items() if k in known and k not in ("backend", "mfd")}
+        return cls(backend=backend, mfd=mfd, **filtered)
 
     def save(self) -> Path:
         path = config_path()
