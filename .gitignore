@@ -10,3 +10,6 @@ env/
 
 # Local configuration
 *.local
+
+# Entwicklungs-Patches
+patches/
