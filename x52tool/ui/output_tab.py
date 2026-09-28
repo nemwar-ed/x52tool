@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -249,8 +249,15 @@ class OutputTab(QWidget):
         mfd_row.addStretch(1)
         outer.addLayout(mfd_row)
 
-        # Abstand
-        from PyQt6.QtWidgets import QSpacerItem, QSizePolicy
+        # Buttons – Zeile 3: Volltest
+        full_row = QHBoxLayout()
+        self.btn_test_all = QPushButton(i18n.t("output.btn_test_all"))
+        self.btn_test_all.clicked.connect(self._start_full_test)
+        full_row.addStretch(1)
+        full_row.addWidget(self.btn_test_all)
+        full_row.addStretch(1)
+        outer.addLayout(full_row)
+
         outer.addSpacing(12)
 
         # Helligkeit-Label zentriert
@@ -283,6 +290,95 @@ class OutputTab(QWidget):
 
         return box
 
+    # -- Volltest ----------------------------------------------------------
+
+    def _build_test_steps(self) -> list:
+        from ..output import PRO_LEDS, MFD_LINES
+        steps = []
+        STICK_KEYS    = ["fire", "a", "b", "pov", "t1", "t2", "t3"]
+        THROTTLE_KEYS = ["e", "d", "clutch", "throttle"]
+        led_map = {key: states for key, _label, states in PRO_LEDS()}
+
+        # Blink
+        for target in ("mfd", "led"):
+            steps.append(("brightness", target, 0))
+        for target in ("mfd", "led"):
+            steps.append(("brightness", target, 128))
+
+        # Alle aus
+        for key in STICK_KEYS + THROTTLE_KEYS:
+            if key in led_map:
+                steps.append(("led", key, "off"))
+
+        # Stick-LEDs
+        for key in STICK_KEYS:
+            for state in led_map.get(key, ())[1:]:
+                steps.append(("led", key, state))
+            steps.append(("led", key, "off"))
+
+        # Throttle-LEDs
+        for key in THROTTLE_KEYS:
+            for state in led_map.get(key, ())[1:]:
+                steps.append(("led", key, state))
+            steps.append(("led", key, "off"))
+
+        # MFD leeren
+        for line in range(MFD_LINES):
+            steps.append(("mfd", line, ""))
+
+        # MFD ASCII-Test
+        for line, text in enumerate([
+            "ABCDEFGHIJKLMNOP",
+            "abcdefghijklmnop",
+            "0123456789!?+-.,",
+        ]):
+            steps.append(("mfd", line, text))
+
+        # MFD Abschlusstext
+        for line, text in enumerate([
+            "X52 Professional",
+            "  Space/Flight  ",
+            "   H.O.T.A.S.  ",
+        ]):
+            steps.append(("mfd", line, text))
+
+        # Alle LEDs grün/an
+        for key in STICK_KEYS + THROTTLE_KEYS:
+            states = led_map.get(key, ())
+            final  = "green" if "green" in states else ("on" if "on" in states else states[-1])
+            steps.append(("led", key, final))
+
+        return steps
+
+    def _start_full_test(self) -> None:
+        if not self.backend.available:
+            return
+        self._test_steps = self._build_test_steps()
+        self._test_idx   = 0
+        self._test_total = len(self._test_steps)
+        self.btn_test_all.setEnabled(False)
+        self._test_timer = QTimer(self)
+        self._test_timer.timeout.connect(self._run_test_step)
+        self._test_timer.start(80)
+
+    def _run_test_step(self) -> None:
+        if self._test_idx >= self._test_total:
+            self._test_timer.stop()
+            self.btn_test_all.setEnabled(True)
+            return
+        step = self._test_steps[self._test_idx]
+        kind = step[0]
+        if kind == "brightness":
+            self.backend.set_brightness(step[1], step[2])
+            self._test_timer.setInterval(80)
+        elif kind == "led":
+            self.backend.set_led(step[1], step[2])
+            self._test_timer.setInterval(180)
+        elif kind == "mfd":
+            self.backend.set_mfd_line(step[1], step[2])
+            self._test_timer.setInterval(800)
+        self._test_idx += 1
+
     # -- Verfügbarkeit -----------------------------------------------------
 
     def _refresh_availability(self) -> None:
@@ -290,6 +386,7 @@ class OutputTab(QWidget):
         for combo in self._led_boxes.values():
             combo.setEnabled(avail)
         self.clutch_checkbox.setEnabled(avail)
+        self.btn_test_all.setEnabled(avail)
 
     # -- i18n --------------------------------------------------------------
 
