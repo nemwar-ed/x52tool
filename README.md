@@ -1,284 +1,201 @@
 # x52tool
 
-**Test-, Analyse- und Kalibrierwerkzeug für Saitek / Logitech X52 und X52 Pro unter Linux.**
+**Test, calibration and LED/MFD tool for the Saitek / Logitech X52 and X52 Pro on Linux.**
 
-`x52tool` ist eine native Linux-GUI zur Untersuchung eines X52/X52 Pro. Das Programm zeigt, was Linux vom Gerät sieht, hilft beim Testen von Achsen und Tasten, misst Achsen im Ruhezustand und über ihren Bewegungsbereich und bietet experimentelle Kalibrierfunktionen.
+![Preview](preview.webp)
 
-Das Projekt entstand ursprünglich durch **AI-assisted development („Vibe Coding“) mit Anthropic Claude**. Die weitere Entwicklung, Überprüfung, Fehlersuche und Aufräumarbeit erfolgt mit Unterstützung von **OpenAI ChatGPT**.
+`x52tool` is a native Linux GUI for the X52 and X52 Pro HOTAS. It shows what Linux sees from the device, lets you test axes and buttons in real time, calibrate axes, and control LEDs and the MFD display — all without a daemon or Windows driver.
 
-Der Code wird nicht ungeprüft als korrekt vorausgesetzt: Funktionen sollen auf echter Linux-/X52-Pro-Hardware praktisch getestet werden. Nicht getestete Funktionen werden entsprechend gekennzeichnet.
+Tested on: **Logitech X52 Professional** (USB-ID `06a3:0762`) on **CachyOS** (Arch-based).
 
-## Aktueller Stand – v0.1.0
+---
 
-### Enthalten
+## Features
 
-- Erkennung von X52/X52 Pro über Linux `evdev`
-- Anzeige der erkannten Achsen und Tasten
-- Live-Test mit Achsbalken und Tastenraster
-- Ruhemessung von Achsen
-- Bereichsmessung von Achsen
-- Vorschlag einer Deadzone auf Basis der gemessenen Ruhelage und des Rauschens
-- experimentelle Kalibrierung über `EVIOCSABS`
-- Speichern und Laden von Kalibrierprofilen
-- LED-Steuerung über `x52cli` / `libx52`
-- MFD-Ausgabe über `x52cli` / `libx52`
-- Helligkeitssteuerung für unterstützte LED-/MFD-Funktionen
-- native PyQt6-Oberfläche
-- kein Flatpak erforderlich
+### Live Test
+- Real-time display of all axes and buttons as reported by Linux `evdev`
+- Axis bars with deadzone indicator
+- Button grid with live highlighting
+- Ministick shown separately
 
-### Noch nicht vollständig validiert
+### Calibration
+- Guided axis measurement (min/max peak detection, one axis at a time)
+- Noise and centre offset display
+- Deadzone and fuzz suggestions based on measured values
+- Write calibration directly to the kernel via `EVIOCSABS`
+- Save and load calibration profiles per USB-ID
 
-- praktische Kalibrierung mit `EVIOCSABS` auf verschiedenen X52-Pro-Systemen
-- dauerhafte Anwendung von Kalibrierprofilen über udev
-- Übernahme von `flat`/Deadzone durch alle Anwendungen und Spiele
-- vollständiger MFD-Test auf unterschiedlicher X52-Hardware
-- Grenzwerte und Heuristiken der Analyse als allgemeingültige Hardwarediagnose
+### LED / MFD
+- Set individual LED colours (Fire, A, B, D, E, T1/T2, T3/T4, T5/T6, POV2, Clutch, Throttle)
+- MFD clock: local time, 12/24h format, date format, timezone offsets for Clock 2 and Clock 3
+- MFD brightness and LED brightness sliders (live)
+- All LEDs on / All LEDs off / MFD on / MFD off
+- Full LED/MFD test sequence with closing display text
+- Clutch mode toggle
 
-### Nicht Bestandteil von v0.1.0
+### Settings
+- Device info block with rescan button
+- Language switching (German / English)
+- Log file access and diagnostic report generation
 
-- Elite-Dangerous-Integration
-- andere Game-Plugins
-- virtuelle Joysticks / eigene Antwortkurven über `uinput`
-- Hintergrund-Daemon für mehrere Anwendungen
+---
 
-Diese Funktionen können später separat entwickelt werden.
-
-## Architektur
-
-Das Programm verwendet bewusst vorhandene Linux-Schnittstellen und baut das USB-Protokoll des X52 nicht selbst nach:
-
-    x52tool
-       │
-       ├───────────────┐
-       │               │
-    Eingabe          Ausgabe
-       │               │
-     evdev           x52cli
-       │               │
-    /dev/input/      libx52
-    eventN             │
-       │               │
-       └───────┬───────┘
-               │
-             X52 Pro
-
-- **PyQt6** – grafische Oberfläche
-- **python-evdev** – Achsen, Tasten und Event-Geräte
-- **EVIOCGABS / EVIOCSABS** – Lesen und Schreiben der evdev-Achsenparameter
-- **x52cli / libx52** – LEDs und MFD
-
-`x52d` und `x52ctl` gehören ebenfalls zum libx52-Projekt. Sie sind für den aktuellen v0.1.0-Ausgabeweg jedoch nicht erforderlich. `x52tool` verwendet für LEDs und MFD bewusst das direkte `x52cli`.
-
-## Voraussetzungen
+## Requirements
 
 - Linux
-- Python 3
+- Python 3.10 or newer
 - PyQt6
 - python-evdev
-- ein Saitek / Logitech X52 oder X52 Pro
-- optional: `libx52` für LEDs und MFD
+- Saitek / Logitech X52 or X52 Pro
+- `libx52` (`x52cli`) for LED and MFD control
 
-Die Entwicklung und die Hardwaretests dieses Projekts erfolgen auf **CachyOS**.
+---
 
-## Installation unter CachyOS / Arch
+## Installation
 
-Python-Abhängigkeiten können aus den vorhandenen Systempaketen oder in einer virtuellen Umgebung installiert werden.
+### CachyOS / Arch
 
-Beispiel mit einer virtuellen Umgebung:
+Install Python dependencies:
 
-    python3 -m venv .venv
-    .venv/bin/pip install -r requirements.txt
+```bash
+pip install pyqt6 evdev --break-system-packages
+```
 
-Danach kann das Programm gestartet werden:
+Or using a virtual environment:
 
-    ./run.sh
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
 
-Wenn die Abhängigkeiten über die virtuelle Umgebung installiert wurden und `run.sh` das System-Python verwendet, kann alternativ direkt die Python-Umgebung gestartet werden:
+Install `libx52` from the AUR:
 
-    .venv/bin/python -m x52tool
+```bash
+yay -S libx52
+```
 
-### libx52 / x52cli
+Run the tool:
 
-Für die LED- und MFD-Funktionen wird `libx52` benötigt.
+```bash
+python3 -m x52tool
+```
 
-`libx52` ist auf Arch-basierten Systemen derzeit nicht Bestandteil der offiziellen Arch-/CachyOS-Repositories, sondern über das **AUR** verfügbar.
+Or with the virtual environment:
 
-Mit einem AUR-Helper beispielsweise:
+```bash
+.venv/bin/python -m x52tool
+```
 
-    yay -S libx52
+### USB permissions for LEDs and MFD
 
-Anschließend sollte das Programm gefunden werden:
+`x52cli` accesses the USB device directly. A udev rule is required for non-root access.
 
-    which x52cli
+For the X52 Pro (`06a3:0762`), create `/etc/udev/rules.d/60-x52tool.rules`:
 
-`x52tool` benötigt für diesen Ausgabeweg nicht `x52d`.
+```
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0762", MODE="0666"
+```
 
-## USB-Rechte für LEDs und MFD
+Then reload and reconnect:
 
-`x52cli` greift für die X52-spezifischen Ausgabefunktionen direkt auf das USB-Gerät zu. Auf einer Standardinstallation kann der Zugriff für einen normalen Benutzer fehlen.
+```bash
+sudo udevadm control --reload-rules
+```
 
-Für einen X52 Pro mit USB-ID `06a3:0762` kann eine udev-Regel verwendet werden:
+Unplug and replug the X52 Pro.
 
-    SUBSYSTEMS=="usb", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0762", MODE="0666"
+---
 
-Zum Beispiel als:
+## Command line
 
-    /etc/udev/rules.d/60-x52tool.rules
+List detected devices without launching the GUI:
 
-Danach die Regeln neu laden:
+```bash
+python3 -m x52tool --list
+```
 
-    sudo udevadm control --reload-rules
+Apply a saved calibration profile:
 
-Anschließend den X52 Pro einmal abziehen und wieder einstecken.
+```bash
+python3 -m x52tool --apply
+python3 -m x52tool --apply --device /dev/input/event7
+```
 
-**Hinweis:** Diese Regel gibt Zugriff auf genau dieses USB-Gerät für alle lokalen Benutzer. Sie wurde für den Entwicklungsstand von `x52tool` auf CachyOS praktisch getestet.
+---
 
-Die USB-ID anderer X52-Varianten kann abweichen.
+## Project structure
 
-## Live-Test
+```
+x52tool/
+├── README.md
+├── README.de.md
+├── LICENSE
+├── requirements.txt
+├── run.sh
+└── x52tool/
+    ├── __init__.py
+    ├── __main__.py
+    ├── analysis.py
+    ├── config.py
+    ├── device.py
+    ├── logger.py
+    ├── output.py
+    └── ui/
+        ├── calib2_tab.py
+        ├── live_tab.py
+        ├── main_window.py
+        ├── output_tab.py
+        ├── settings_tab.py
+        └── widgets.py
+```
 
-Der Live-Test zeigt alle vom gewählten evdev-Gerät erkannten Achsen und Tasten.
+Settings and calibration profiles are stored in:
 
-Achsen werden mit Rohwert, Bereich und sichtbarer Deadzone dargestellt. Tasten leuchten in der Oberfläche auf, sobald Linux den entsprechenden Button-Event meldet.
+```
+~/.config/x52tool/config.json
+```
 
-Der Tab ist bewusst rein diagnostisch: Er verändert keine Geräteeinstellungen.
+Log files are stored in:
 
-## Analyse
+```
+~/.local/share/x52tool/x52tool.log
+~/.local/share/x52tool/x52tool-diag.log
+```
 
-### Ruhemessung
-
-Stick und Schubhebel werden für eine einstellbare Zeit nicht berührt. `x52tool` sammelt den aktuellen Achszustand und berechnet unter anderem:
-
-- Mittelwert / Mittenversatz
-- Spitze-Spitze-Rauschbreite
-- Standardabweichung
-- aktuellen `flat`-Wert
-- einen daraus abgeleiteten Deadzone-Vorschlag
-
-Wenn gewünscht, wird `fuzz` während der Messung vorübergehend auf 0 gesetzt und anschließend wiederhergestellt. Dadurch soll vermieden werden, dass die Kernel-Filterung selbst als Hardware-Rauschen gemessen wird.
-
-Der Deadzone-Vorschlag ist eine **Heuristik**, keine garantierte optimale Einstellung.
-
-### Bereichsmessung
-
-Jede Achse wird einmal von Anschlag zu Anschlag bewegt. Das Programm vergleicht den gemessenen Bereich mit dem vom Kernel gemeldeten Bereich.
-
-Ein geringer gemessener Bereich bedeutet zunächst nur:
-
-> Die Achse hat während der Messung den erwarteten Bereich nicht erreicht.
-
-Das ist **kein automatischer Beweis für einen defekten oder verschlissenen Sensor**. Die Bewegung während der Messung, die Mechanik und weitere Faktoren können das Ergebnis beeinflussen.
-
-## Kalibrierung
-
-Der Kalibrierungs-Tab kann für analoge Achsen folgende evdev-Werte verändern:
-
-- `minimum`
-- `maximum`
-- `fuzz`
-- `flat`
-
-Die Werte werden über `EVIOCSABS` direkt an das Event-Gerät geschrieben.
-
-Die Änderungen gelten zunächst nur für den aktuellen Gerätezustand und können beim erneuten Einstecken verloren gehen. Das Projekt enthält deshalb Funktionen zum Speichern von Profilen und zum Erzeugen von udev-Regeln.
-
-### Wichtige Einschränkung
-
-Nicht jede Anwendung verwendet die evdev-Achsenparameter auf dieselbe Weise. Insbesondere bei Proton kann der tatsächlich verwendete Eingabeweg unterschiedlich sein.
-
-Deshalb sollte eine Kalibrierung **nicht als automatisch spielwirksame Deadzone betrachtet werden**, bevor sie mit der konkreten Anwendung getestet wurde.
-
-Die Kalibrierungsfunktion ist in v0.1.0 ausdrücklich **experimentell**.
-
-## Kommandozeile
-
-Auch ohne Qt kann das Programm Geräte auflisten:
-
-    python3 -m x52tool --list
-
-Gespeicherte Profile können über den Apply-Modus auf ein Gerät geschrieben werden:
-
-    python3 -m x52tool --apply
-
-Oder gezielt auf einen Event-Knoten:
-
-    python3 -m x52tool --apply --device /dev/input/event7
-
-Dieser Teil ist für die spätere dauerhafte Profilanwendung vorgesehen und in v0.1.0 noch nicht als vollständig getesteter udev-Workflow anzusehen.
-
-## Projektstruktur
-
-    x52tool/
-    ├── README.md
-    ├── LICENSE
-    ├── requirements.txt
-    ├── run.sh
-    └── x52tool/
-        ├── __init__.py
-        ├── __main__.py
-        ├── analysis.py
-        ├── config.py
-        ├── device.py
-        ├── output.py
-        └── ui/
-            ├── __init__.py
-            ├── analysis_tab.py
-            ├── calib_tab.py
-            ├── live_tab.py
-            ├── main_window.py
-            ├── output_tab.py
-            └── widgets.py
-
-Lokale Einstellungen und Kalibrierprofile werden unter
-
-    ~/.config/x52tool/config.json
-
-gespeichert.
+---
 
 ## AI-assisted development
 
-`x52tool` entstand ursprünglich durch AI-assisted development („Vibe Coding“) mit **Anthropic Claude**.
+`x52tool` was developed with the assistance of **Anthropic Claude**. All code is reviewed and tested on real Linux / X52 Pro hardware before being committed.
 
-Die weitere Entwicklung umfasst Review, Fehlersuche, Tests, technische Recherche und strukturelle Überarbeitung mit Unterstützung von **OpenAI ChatGPT**.
+---
 
-KI-generierter Code kann Fehler enthalten. Deshalb gilt für dieses Projekt ausdrücklich: Eine Funktion gilt nicht allein deshalb als zuverlässig, weil der Code plausibel aussieht.
+## Contributing
 
-Hardwarefunktionen werden auf realer Linux-/X52-Pro-Hardware getestet und ungetestete Funktionen werden als solche dokumentiert.
+Bug reports, tests on other X52 / X52 Pro hardware, and improvements are welcome.
 
-## Mitmachen
+For bug reports, please include:
 
-Fehlerberichte, Tests mit anderen X52-/X52-Pro-Geräten und Verbesserungen sind willkommen.
+- Distribution and version
+- Kernel version
+- X52 or X52 Pro
+- Output of `lsusb`
+- Output of `python3 -m x52tool --list`
+- Any error messages from the terminal
+- The diagnostic log from Settings → Create Diagnostic
 
-Besonders hilfreich sind bei Fehlerberichten:
+---
 
-- Distribution und Version
-- Kernel-Version
-- X52 oder X52 Pro
-- Ausgabe von `lsusb`
-- Ausgabe von `python3 -m x52tool --list`
-- relevante Fehlermeldungen aus dem Terminal
+## License
 
-## Lizenz
+`x52tool` is released under the **GNU General Public License v3.0**. See `LICENSE`.
 
-`x52tool` wird unter der **GNU General Public License v3.0** veröffentlicht. Siehe `LICENSE`.
+`libx52` is a separate project with its own license: https://github.com/nirenjan/libx52
 
-Die verwendeten externen Projekte und Bibliotheken besitzen eigene Lizenzen. Insbesondere `libx52` ist ein separates Projekt und wird von `x52tool` nicht als Bestandteil des Python-Quellcodes eingebettet.
+---
 
-## Bekannte Einschränkungen
-
-- Die Kalibrierungsfunktionen sind noch nicht umfassend auf verschiedenen X52-Pro-Geräten getestet.
-- Die Wirkung von `flat` und `fuzz` hängt vom verwendeten Eingabeweg der jeweiligen Anwendung ab.
-- Die Analyse liefert Messwerte und Heuristiken, keine automatische Aussage über einen Hardwaredefekt.
-- Für LEDs und MFD wird ein installiertes `x52cli` benötigt.
-- Für den direkten USB-Zugriff kann eine passende udev-Regel erforderlich sein.
-- Game-Integration und Plugin-Unterstützung sind noch nicht Bestandteil von v0.1.0.
-
-## Danksagung
-
-Danke an die Entwickler von **libx52** und **python-evdev** für die vorhandenen Linux-Schnittstellen und Werkzeuge, auf denen `x52tool` aufbaut.
-
-### Weitere Projekte
+## Links
 
 - libx52: https://github.com/nirenjan/libx52
 - python-evdev: https://python-evdev.readthedocs.io/
-- libx52 im Arch User Repository: https://aur.archlinux.org/packages/libx52
+- libx52 on AUR: https://aur.archlinux.org/packages/libx52

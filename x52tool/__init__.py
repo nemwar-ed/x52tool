@@ -8,5 +8,5 @@ Aufbau:
     ui/          PyQt6-Oberflaeche, ein Modul pro Reiter
 """
 
-__version__ = "0.5.16-alpha"
+__version__ = "0.0.1-beta"
 __all__ = ["__version__"]
