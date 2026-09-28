@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -10,14 +10,13 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QPushButton,
     QSlider,
     QVBoxLayout,
     QWidget,
 )
 
-from ..output import MFD_LINES, MFD_WIDTH, PRO_LEDS, Backend, CommandResult, detect_binary
+from ..output import PRO_LEDS, Backend, detect_binary
 from .. import i18n
 
 
@@ -153,6 +152,7 @@ class OutputTab(QWidget):
             lambda checked: self.backend.set_clutch(checked)
         )
         self.clutch_latched = QCheckBox(i18n.t("output.clutch_latched"))
+        layout.addStretch(1)
         layout.addWidget(self.clutch_checkbox)
         layout.addWidget(self.clutch_latched)
         layout.addStretch(1)
@@ -162,134 +162,50 @@ class OutputTab(QWidget):
         box   = QGroupBox(i18n.t("output.group_test"))
         outer = QVBoxLayout(box)
 
-        # Helligkeit
-        bri_row = QHBoxLayout()
+        # Buttons oben zentriert
+        btn_row = QHBoxLayout()
+        btn_on  = QPushButton(i18n.t("output.btn_all_on"))
+        btn_off = QPushButton(i18n.t("output.btn_all_off"))
+        btn_on.clicked.connect(lambda: self.backend.all_leds("green"))
+        btn_off.clicked.connect(lambda: self.backend.all_leds("off"))
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_on)
+        btn_row.addWidget(btn_off)
+        btn_row.addStretch(1)
+        outer.addLayout(btn_row)
+
+        # Helligkeit-Label zentriert
+        bri_label_row = QHBoxLayout()
+        bri_label_row.addStretch(1)
+        bri_label_row.addWidget(QLabel(i18n.t("output.group_brightness")))
+        bri_label_row.addStretch(1)
+        outer.addLayout(bri_label_row)
+
+        # LED-Slider
+        led_row = QHBoxLayout()
         self.bright_led = QSlider(Qt.Orientation.Horizontal)
         self.bright_led.setRange(0, 128)
         self.bright_led.setValue(128)
         self.bright_led.sliderReleased.connect(
             lambda: self.backend.set_brightness("led", self.bright_led.value())
         )
+        led_row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
+        led_row.addWidget(self.bright_led, 1)
+        outer.addLayout(led_row)
+
+        # MFD-Slider
+        mfd_row = QHBoxLayout()
         self.bright_mfd = QSlider(Qt.Orientation.Horizontal)
         self.bright_mfd.setRange(0, 128)
         self.bright_mfd.setValue(128)
         self.bright_mfd.sliderReleased.connect(
             lambda: self.backend.set_brightness("mfd", self.bright_mfd.value())
         )
-        bri_row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
-        bri_row.addWidget(self.bright_led, 1)
-        bri_row.addWidget(QLabel(i18n.t("output.label_brightness_mfd")))
-        bri_row.addWidget(self.bright_mfd, 1)
-        outer.addLayout(bri_row)
+        mfd_row.addWidget(QLabel(i18n.t("output.label_brightness_mfd")))
+        mfd_row.addWidget(self.bright_mfd, 1)
+        outer.addLayout(mfd_row)
 
-        # Buttons + Fortschritt
-        test_row = QHBoxLayout()
-        self.btn_test_all = QPushButton(i18n.t("output.btn_test_all"))
-        self.btn_test_all.clicked.connect(self._start_full_test)
-
-        btn_sweep = QPushButton(i18n.t("output.btn_sweep"))
-        btn_on    = QPushButton(i18n.t("output.btn_all_on"))
-        btn_off   = QPushButton(i18n.t("output.btn_all_off"))
-        btn_sweep.clicked.connect(lambda: self.backend.led_sweep())
-        btn_on.clicked.connect(lambda: self.backend.all_leds("green"))
-        btn_off.clicked.connect(lambda: self.backend.all_leds("off"))
-
-        self.test_progress = QProgressBar()
-        self.test_progress.setRange(0, 100)
-        self.test_progress.setValue(0)
-        self.test_progress.setTextVisible(True)
-        self.test_progress.setFixedWidth(200)
-
-        test_row.addWidget(self.btn_test_all)
-        test_row.addWidget(btn_sweep)
-        test_row.addWidget(btn_on)
-        test_row.addWidget(btn_off)
-        test_row.addWidget(self.test_progress)
-        test_row.addStretch(1)
-        outer.addLayout(test_row)
         return box
-
-    # -- Volltest ----------------------------------------------------------
-
-    def _build_test_steps(self) -> list:
-        steps = []
-        STICK_KEYS    = ["fire", "a", "b", "pov", "t1", "t2", "t3"]
-        THROTTLE_KEYS = ["e", "d", "clutch", "throttle"]
-        led_map = {key: states for key, _label, states in PRO_LEDS()}
-
-        for target in ("mfd", "led"):
-            steps.append(("brightness", target, 0))
-        for target in ("mfd", "led"):
-            steps.append(("brightness", target, 128))
-
-        for key in STICK_KEYS + THROTTLE_KEYS:
-            if key in led_map:
-                steps.append(("led", key, "off"))
-
-        for key in STICK_KEYS:
-            for state in led_map.get(key, ())[1:]:
-                steps.append(("led", key, state))
-            steps.append(("led", key, "off"))
-
-        for key in THROTTLE_KEYS:
-            for state in led_map.get(key, ())[1:]:
-                steps.append(("led", key, state))
-            steps.append(("led", key, "off"))
-
-        for line in range(MFD_LINES):
-            steps.append(("mfd", line, ""))
-
-        for line, text in enumerate([
-            "ABCDEFGHIJKLMNOP",
-            "abcdefghijklmnop",
-            "0123456789!?+-.,",
-        ]):
-            steps.append(("mfd", line, text))
-
-        for line in range(MFD_LINES):
-            steps.append(("mfd", line, ""))
-
-        for key in STICK_KEYS + THROTTLE_KEYS:
-            states = led_map.get(key, ())
-            final  = "green" if "green" in states else ("on" if "on" in states else states[-1])
-            steps.append(("led", key, final))
-
-        return steps
-
-    def _start_full_test(self) -> None:
-        if not self.backend.available:
-            return
-        self._test_steps = self._build_test_steps()
-        self._test_idx   = 0
-        self._test_total = len(self._test_steps)
-        self.btn_test_all.setEnabled(False)
-        self.test_progress.setValue(0)
-        self._test_timer = QTimer(self)
-        self._test_timer.timeout.connect(self._run_test_step)
-        self._test_timer.start(80)
-
-    def _run_test_step(self) -> None:
-        if self._test_idx >= self._test_total:
-            self._test_timer.stop()
-            self.test_progress.setValue(100)
-            self.btn_test_all.setEnabled(True)
-            return
-
-        step = self._test_steps[self._test_idx]
-        kind = step[0]
-
-        if kind == "brightness":
-            self.backend.set_brightness(step[1], step[2])
-            self._test_timer.setInterval(80)
-        elif kind == "led":
-            self.backend.set_led(step[1], step[2])
-            self._test_timer.setInterval(180)
-        elif kind == "mfd":
-            self.backend.set_mfd_line(step[1], step[2])
-            self._test_timer.setInterval(800)
-
-        self._test_idx += 1
-        self.test_progress.setValue(int(self._test_idx / self._test_total * 100))
 
     # -- Verfügbarkeit -----------------------------------------------------
 
@@ -298,7 +214,6 @@ class OutputTab(QWidget):
         for combo in self._led_boxes.values():
             combo.setEnabled(avail)
         self.clutch_checkbox.setEnabled(avail)
-        self.btn_test_all.setEnabled(avail)
 
     # -- i18n --------------------------------------------------------------
 
