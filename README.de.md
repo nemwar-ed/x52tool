@@ -70,6 +70,12 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
+Oder direkt von GitHub installieren:
+
+```bash
+pip install git+https://github.com/nemwar-ed/x52tool.git --break-system-packages
+```
+
 `libx52` aus dem AUR installieren:
 
 ```bash
