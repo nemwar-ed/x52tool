@@ -265,14 +265,14 @@ class OutputTab(QWidget):
         self.bright_led = QSlider(Qt.Orientation.Horizontal)
         self.bright_led.setRange(0, 128)
         self.bright_led.setValue(128)
-        self.bright_led.sliderReleased.connect(
-            lambda: self.backend.set_brightness("led", self.bright_led.value())
+        self.bright_led.valueChanged.connect(
+            lambda v: self.backend.set_brightness("led", v)
         )
         self.bright_mfd = QSlider(Qt.Orientation.Horizontal)
         self.bright_mfd.setRange(0, 128)
         self.bright_mfd.setValue(128)
-        self.bright_mfd.sliderReleased.connect(
-            lambda: self.backend.set_brightness("mfd", self.bright_mfd.value())
+        self.bright_mfd.valueChanged.connect(
+            lambda v: self.backend.set_brightness("mfd", v)
         )
         sliders_row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
         sliders_row.addWidget(self.bright_led, 1)
