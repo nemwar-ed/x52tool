@@ -60,21 +60,23 @@ class OutputTab(QWidget):
         layout = QVBoxLayout(box)
 
         # -- Clock 1 (Lokalzeit) --
-        clock1_row = QHBoxLayout()
+        clock1_box = QGroupBox(i18n.t("output.mfd_clock1"))
+        clock1_layout = QHBoxLayout(clock1_box)
         self.chk_local_time = QCheckBox(i18n.t("output.mfd_local_time"))
         self.chk_12h_clock1 = QCheckBox(i18n.t("output.mfd_12h"))
         self.chk_local_time.toggled.connect(self._apply_clock)
         self.chk_12h_clock1.toggled.connect(self._apply_clock)
-        clock1_row.addWidget(QLabel(i18n.t("output.mfd_clock1")))
-        clock1_row.addWidget(self.chk_local_time)
-        clock1_row.addWidget(self.chk_12h_clock1)
-        clock1_row.addStretch(1)
+        clock1_layout.addStretch(1)
+        clock1_layout.addWidget(self.chk_local_time)
+        clock1_layout.addWidget(self.chk_12h_clock1)
+        clock1_layout.addStretch(1)
 
         # -- Datumsformat --
         date_row = QHBoxLayout()
         self.combo_date_fmt = QComboBox()
         self.combo_date_fmt.addItems(["DD-MM-YY", "MM-DD-YY", "YY-MM-DD"])
         self.combo_date_fmt.currentIndexChanged.connect(self._apply_clock)
+        date_row.addStretch(1)
         date_row.addWidget(QLabel(i18n.t("output.mfd_date_format")))
         date_row.addWidget(self.combo_date_fmt)
         date_row.addStretch(1)
@@ -107,7 +109,7 @@ class OutputTab(QWidget):
         clocks23_row.addWidget(clock2_box, 1)
         clocks23_row.addWidget(clock3_box, 1)
 
-        layout.addLayout(clock1_row)
+        layout.addWidget(clock1_box)
         layout.addLayout(date_row)
         layout.addLayout(clocks23_row)
         return box
