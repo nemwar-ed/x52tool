@@ -58,19 +58,7 @@ class OutputTab(QWidget):
         box    = QGroupBox(i18n.t("output.group_mfd_clock"))
         layout = QVBoxLayout(box)
 
-        # -- Clock 1 (Lokalzeit) --
-        clock1_box = QGroupBox(i18n.t("output.mfd_clock1"))
-        clock1_layout = QHBoxLayout(clock1_box)
-        self.chk_local_time = QCheckBox(i18n.t("output.mfd_local_time"))
-        self.chk_12h_clock1 = QCheckBox(i18n.t("output.mfd_12h"))
-        self.chk_local_time.toggled.connect(self._apply_clock)
-        self.chk_12h_clock1.toggled.connect(self._apply_clock)
-        clock1_layout.addStretch(1)
-        clock1_layout.addWidget(self.chk_local_time)
-        clock1_layout.addWidget(self.chk_12h_clock1)
-        clock1_layout.addStretch(1)
-
-        # -- Datumsformat --
+        # Datumsformat
         date_row = QHBoxLayout()
         self.combo_date_fmt = QComboBox()
         self.combo_date_fmt.addItems(["DD-MM-YY", "MM-DD-YY", "YY-MM-DD"])
@@ -79,12 +67,24 @@ class OutputTab(QWidget):
         date_row.addWidget(QLabel(i18n.t("output.mfd_date_format")))
         date_row.addWidget(self.combo_date_fmt)
         date_row.addStretch(1)
+        layout.addLayout(date_row)
 
-        # -- Clock 2 + 3 (GMT-Offset) nebeneinander --
-        clocks23_row = QHBoxLayout()
+        # Drei Uhren nebeneinander
+        clocks_row = QHBoxLayout()
 
+        # Uhr 1
+        clock1_box = QGroupBox(i18n.t("output.mfd_clock1"))
+        clock1_layout = QVBoxLayout(clock1_box)
+        self.chk_local_time = QCheckBox(i18n.t("output.mfd_local_time"))
+        self.chk_12h_clock1 = QCheckBox(i18n.t("output.mfd_12h"))
+        self.chk_local_time.toggled.connect(self._apply_clock)
+        self.chk_12h_clock1.toggled.connect(self._apply_clock)
+        clock1_layout.addWidget(self.chk_local_time)
+        clock1_layout.addWidget(self.chk_12h_clock1)
+
+        # Uhr 2
         clock2_box = QGroupBox(i18n.t("output.mfd_clock2"))
-        clock2_layout = QHBoxLayout(clock2_box)
+        clock2_layout = QVBoxLayout(clock2_box)
         self.combo_offset2 = QComboBox()
         self._fill_offset_combo(self.combo_offset2)
         self.chk_12h_clock2 = QCheckBox(i18n.t("output.mfd_12h"))
@@ -94,8 +94,9 @@ class OutputTab(QWidget):
         clock2_layout.addWidget(self.combo_offset2)
         clock2_layout.addWidget(self.chk_12h_clock2)
 
+        # Uhr 3
         clock3_box = QGroupBox(i18n.t("output.mfd_clock3"))
-        clock3_layout = QHBoxLayout(clock3_box)
+        clock3_layout = QVBoxLayout(clock3_box)
         self.combo_offset3 = QComboBox()
         self._fill_offset_combo(self.combo_offset3)
         self.chk_12h_clock3 = QCheckBox(i18n.t("output.mfd_12h"))
@@ -105,12 +106,10 @@ class OutputTab(QWidget):
         clock3_layout.addWidget(self.combo_offset3)
         clock3_layout.addWidget(self.chk_12h_clock3)
 
-        clocks23_row.addWidget(clock2_box, 1)
-        clocks23_row.addWidget(clock3_box, 1)
-
-        layout.addWidget(clock1_box)
-        layout.addLayout(date_row)
-        layout.addLayout(clocks23_row)
+        clocks_row.addWidget(clock1_box, 1)
+        clocks_row.addWidget(clock2_box, 1)
+        clocks_row.addWidget(clock3_box, 1)
+        layout.addLayout(clocks_row)
         return box
 
     def _fill_offset_combo(self, combo: QComboBox) -> None:
