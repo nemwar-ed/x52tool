@@ -393,6 +393,7 @@ class OutputTab(QWidget):
 
     def retranslate(self) -> None:
         layout = self.layout()
+        led_states = {k: combo.currentText() for k, combo in self._led_boxes.items()}
         while layout.count():
             item = layout.takeAt(0)
             w = item.widget()
@@ -400,8 +401,6 @@ class OutputTab(QWidget):
                 w.hide()
                 w.setParent(None)
         self._led_boxes.clear()
-        clutch_checked = self.clutch_checkbox.isChecked()
-        led_states = {k: combo.currentText() for k, combo in self._led_boxes.items()}
 
         layout.addWidget(self._build_leds())
         layout.addWidget(self._build_mfd())
@@ -409,9 +408,7 @@ class OutputTab(QWidget):
         layout.addWidget(self._build_test())
         layout.addStretch(1)
 
-        self.clutch_checkbox.blockSignals(True)
-        self.clutch_checkbox.setChecked(clutch_checked)
-        self.clutch_checkbox.blockSignals(False)
+        self._load_mfd_settings()
         for k, state in led_states.items():
             combo = self._led_boxes.get(k)
             if combo:
