@@ -365,6 +365,7 @@ class OutputTab(QWidget):
         if self._test_idx >= self._test_total:
             self._test_timer.stop()
             self.btn_test_all.setEnabled(True)
+            self._apply_clock()
             return
         step = self._test_steps[self._test_idx]
         kind = step[0]
