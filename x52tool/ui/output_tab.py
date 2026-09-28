@@ -370,7 +370,7 @@ class OutputTab(QWidget):
         kind = step[0]
         if kind == "brightness":
             self.backend.set_brightness(step[1], step[2])
-            self._test_timer.setInterval(80)
+            self._test_timer.setInterval(500)
         elif kind == "led":
             self.backend.set_led(step[1], step[2])
             self._test_timer.setInterval(180)
