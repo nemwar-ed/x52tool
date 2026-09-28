@@ -29,6 +29,7 @@ class OutputTab(QWidget):
         self._build()
         self._refresh_availability()
         self._load_mfd_settings()
+        self._apply_clock()
 
     # -- Aufbau ------------------------------------------------------------
 
@@ -210,23 +211,29 @@ class OutputTab(QWidget):
         box   = QGroupBox(i18n.t("output.group_test"))
         outer = QVBoxLayout(box)
 
-        # Buttons oben zentriert
+        # Buttons – Zeile 1: LEDs
         btn_row = QHBoxLayout()
         btn_on  = QPushButton(i18n.t("output.btn_all_on"))
         btn_off = QPushButton(i18n.t("output.btn_all_off"))
-        btn_mfd_on  = QPushButton(i18n.t("output.btn_mfd_on"))
-        btn_mfd_off = QPushButton(i18n.t("output.btn_mfd_off"))
         btn_on.clicked.connect(lambda: self.backend.all_leds("green"))
         btn_off.clicked.connect(lambda: self.backend.all_leds("off"))
-        btn_mfd_on.clicked.connect(lambda: self.backend.set_brightness("mfd", 128))
-        btn_mfd_off.clicked.connect(lambda: self.backend.set_brightness("mfd", 0))
         btn_row.addStretch(1)
         btn_row.addWidget(btn_on)
         btn_row.addWidget(btn_off)
-        btn_row.addWidget(btn_mfd_on)
-        btn_row.addWidget(btn_mfd_off)
         btn_row.addStretch(1)
         outer.addLayout(btn_row)
+
+        # Buttons – Zeile 2: MFD
+        mfd_row = QHBoxLayout()
+        btn_mfd_on  = QPushButton(i18n.t("output.btn_mfd_on"))
+        btn_mfd_off = QPushButton(i18n.t("output.btn_mfd_off"))
+        btn_mfd_on.clicked.connect(lambda: self.backend.set_brightness("mfd", 128))
+        btn_mfd_off.clicked.connect(lambda: self.backend.set_brightness("mfd", 0))
+        mfd_row.addStretch(1)
+        mfd_row.addWidget(btn_mfd_on)
+        mfd_row.addWidget(btn_mfd_off)
+        mfd_row.addStretch(1)
+        outer.addLayout(mfd_row)
 
         # Helligkeit-Label zentriert
         bri_label_row = QHBoxLayout()
