@@ -2,7 +2,9 @@
 
 **Test, calibration and LED/MFD tool for the Saitek / Logitech X52 and X52 Pro on Linux.**
 
-![Preview](preview.webp)
+| | | | |
+|---|---|---|---|
+| ![Live-Test](tab_live-test.jpg) | ![Kalibrierung](tab_kalibrierung.jpg) | ![LED/MFD](tab_led-mfd.png) | ![Einstellungen](tab_einstellungen.jpg) |
 
 `x52tool` is a native Linux GUI for the X52 and X52 Pro HOTAS. It shows what Linux sees from the device, lets you test axes and buttons in real time, calibrate axes, and control LEDs and the MFD display — all without a daemon or Windows driver.
 
