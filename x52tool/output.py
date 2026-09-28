@@ -117,6 +117,11 @@ class Backend:
             return CommandResult(printable, 1, "", str(exc))
         return CommandResult(printable, proc.returncode, proc.stdout, proc.stderr)
 
+    def run_raw(self, args: list[str]) -> CommandResult:
+        """Führt x52cli mit beliebigen Argumenten aus."""
+        binary = self.config.binary
+        return self._run([binary] + args)
+
     def preview(self, template: str, **values: object) -> str:
         try:
             return shlex.join(self._build(template, **values))

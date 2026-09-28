@@ -33,14 +33,10 @@ class OutputTab(QWidget):
     # -- Aufbau ------------------------------------------------------------
 
     def _build(self) -> None:
-        self.status = QLabel()
-        self.status.setWordWrap(True)
-
         layout = QVBoxLayout(self)
-        layout.addWidget(self.status)
         layout.addWidget(self._build_leds())
+        layout.addWidget(self._build_mfd())
         layout.addWidget(self._build_clutch())
-        layout.addWidget(self._build_brightness())
         layout.addWidget(self._build_test())
         layout.addStretch(1)
 
@@ -57,81 +53,158 @@ class OutputTab(QWidget):
             grid.addWidget(QLabel(label), i // 3, (i % 3) * 2)
             grid.addWidget(combo,         i // 3, (i % 3) * 2 + 1)
             self._led_boxes[key] = combo
-
-        btn_row = QHBoxLayout()
-        btn_sweep = QPushButton(i18n.t("output.btn_sweep"))
-        btn_on    = QPushButton(i18n.t("output.btn_all_on"))
-        btn_off   = QPushButton(i18n.t("output.btn_all_off"))
-        btn_sweep.clicked.connect(lambda: self.backend.led_sweep())
-        btn_on.clicked.connect(lambda: self.backend.all_leds("green"))
-        btn_off.clicked.connect(lambda: self.backend.all_leds("off"))
-        btn_row.addWidget(btn_sweep)
-        btn_row.addWidget(btn_on)
-        btn_row.addWidget(btn_off)
-        btn_row.addStretch(1)
-
-        holder = QWidget()
-        holder.setLayout(btn_row)
-        grid.addWidget(holder, (len(leds) + 2) // 3, 0, 1, 6)
         return box
+
+    def _build_mfd(self) -> QGroupBox:
+        box    = QGroupBox(i18n.t("output.group_mfd_clock"))
+        layout = QVBoxLayout(box)
+
+        # -- Clock 1 (Lokalzeit) --
+        clock1_row = QHBoxLayout()
+        self.chk_local_time = QCheckBox(i18n.t("output.mfd_local_time"))
+        self.chk_12h_clock1 = QCheckBox(i18n.t("output.mfd_12h"))
+        self.chk_local_time.toggled.connect(self._apply_clock)
+        self.chk_12h_clock1.toggled.connect(self._apply_clock)
+        clock1_row.addWidget(QLabel(i18n.t("output.mfd_clock1")))
+        clock1_row.addWidget(self.chk_local_time)
+        clock1_row.addWidget(self.chk_12h_clock1)
+        clock1_row.addStretch(1)
+
+        # -- Datumsformat --
+        date_row = QHBoxLayout()
+        self.combo_date_fmt = QComboBox()
+        self.combo_date_fmt.addItems(["DD-MM-YY", "MM-DD-YY", "YY-MM-DD"])
+        self.combo_date_fmt.currentIndexChanged.connect(self._apply_clock)
+        date_row.addWidget(QLabel(i18n.t("output.mfd_date_format")))
+        date_row.addWidget(self.combo_date_fmt)
+        date_row.addStretch(1)
+
+        # -- Clock 2 + 3 (GMT-Offset) nebeneinander --
+        clocks23_row = QHBoxLayout()
+
+        clock2_box = QGroupBox(i18n.t("output.mfd_clock2"))
+        clock2_layout = QHBoxLayout(clock2_box)
+        self.combo_offset2 = QComboBox()
+        self._fill_offset_combo(self.combo_offset2)
+        self.chk_12h_clock2 = QCheckBox(i18n.t("output.mfd_12h"))
+        self.combo_offset2.currentIndexChanged.connect(self._apply_clock)
+        self.chk_12h_clock2.toggled.connect(self._apply_clock)
+        clock2_layout.addWidget(QLabel(i18n.t("output.mfd_gmt_offset")))
+        clock2_layout.addWidget(self.combo_offset2)
+        clock2_layout.addWidget(self.chk_12h_clock2)
+
+        clock3_box = QGroupBox(i18n.t("output.mfd_clock3"))
+        clock3_layout = QHBoxLayout(clock3_box)
+        self.combo_offset3 = QComboBox()
+        self._fill_offset_combo(self.combo_offset3)
+        self.chk_12h_clock3 = QCheckBox(i18n.t("output.mfd_12h"))
+        self.combo_offset3.currentIndexChanged.connect(self._apply_clock)
+        self.chk_12h_clock3.toggled.connect(self._apply_clock)
+        clock3_layout.addWidget(QLabel(i18n.t("output.mfd_gmt_offset")))
+        clock3_layout.addWidget(self.combo_offset3)
+        clock3_layout.addWidget(self.chk_12h_clock3)
+
+        clocks23_row.addWidget(clock2_box, 1)
+        clocks23_row.addWidget(clock3_box, 1)
+
+        layout.addLayout(clock1_row)
+        layout.addLayout(date_row)
+        layout.addLayout(clocks23_row)
+        return box
+
+    def _fill_offset_combo(self, combo: QComboBox) -> None:
+        """GMT -12 bis +14 in 30-Minuten-Schritten."""
+        for h in range(-12, 15):
+            for m in (0, 30):
+                if h == 14 and m == 30:
+                    break
+                sign  = "+" if h >= 0 else ""
+                label = f"GMT {sign}{h}:{m:02d}"
+                combo.addItem(label, h * 60 + m)
+        # Default: GMT 0:00
+        idx = combo.findData(0)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+
+    def _apply_clock(self) -> None:
+        """Sendet clock- und date-Befehle ans Gerät."""
+        local = "local" if self.chk_local_time.isChecked() else "gmt"
+        hr1   = "12hr" if self.chk_12h_clock1.isChecked() else "24hr"
+        hr2   = "12hr" if self.chk_12h_clock2.isChecked() else "24hr"
+        hr3   = "12hr" if self.chk_12h_clock3.isChecked() else "24hr"
+
+        fmt_map = {"DD-MM-YY": "ddmmyy", "MM-DD-YY": "mmddyy", "YY-MM-DD": "yymmdd"}
+        date_fmt = fmt_map.get(self.combo_date_fmt.currentText(), "ddmmyy")
+
+        off2 = self.combo_offset2.currentData() or 0
+        off3 = self.combo_offset3.currentData() or 0
+
+        self.backend.run_raw(["clock", local, hr1, date_fmt])
+        self.backend.run_raw(["offset", "2", str(off2), hr2])
+        self.backend.run_raw(["offset", "3", str(off3), hr3])
 
     def _build_clutch(self) -> QGroupBox:
         box    = QGroupBox(i18n.t("output.group_clutch"))
-        layout = QVBoxLayout(box)
-        explain = QLabel(i18n.t("output.clutch_explain"))
-        explain.setWordWrap(True)
-        layout.addWidget(explain)
+        layout = QHBoxLayout(box)
         self.clutch_checkbox = QCheckBox(i18n.t("output.clutch_checkbox"))
         self.clutch_checkbox.toggled.connect(
             lambda checked: self.backend.set_clutch(checked)
         )
+        self.clutch_latched = QCheckBox(i18n.t("output.clutch_latched"))
         layout.addWidget(self.clutch_checkbox)
-        return box
-
-    def _build_brightness(self) -> QGroupBox:
-        box = QGroupBox(i18n.t("output.group_brightness"))
-        row = QHBoxLayout(box)
-
-        self.bright_led = QSlider(Qt.Orientation.Horizontal)
-        self.bright_led.setRange(0, 128)
-        self.bright_led.setValue(128)
-        self.bright_led.sliderReleased.connect(
-            lambda: self.backend.set_brightness("led", self.bright_led.value())
-        )
-
-        self.bright_mfd = QSlider(Qt.Orientation.Horizontal)
-        self.bright_mfd.setRange(0, 128)
-        self.bright_mfd.setValue(128)
-        self.bright_mfd.sliderReleased.connect(
-            lambda: self.backend.set_brightness("mfd", self.bright_mfd.value())
-        )
-
-        row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
-        row.addWidget(self.bright_led, 1)
-        row.addWidget(QLabel(i18n.t("output.label_brightness_mfd")))
-        row.addWidget(self.bright_mfd, 1)
+        layout.addWidget(self.clutch_latched)
+        layout.addStretch(1)
         return box
 
     def _build_test(self) -> QGroupBox:
         box   = QGroupBox(i18n.t("output.group_test"))
         outer = QVBoxLayout(box)
 
-        row = QHBoxLayout()
-        row.addStretch(1)
+        # Helligkeit
+        bri_row = QHBoxLayout()
+        self.bright_led = QSlider(Qt.Orientation.Horizontal)
+        self.bright_led.setRange(0, 128)
+        self.bright_led.setValue(128)
+        self.bright_led.sliderReleased.connect(
+            lambda: self.backend.set_brightness("led", self.bright_led.value())
+        )
+        self.bright_mfd = QSlider(Qt.Orientation.Horizontal)
+        self.bright_mfd.setRange(0, 128)
+        self.bright_mfd.setValue(128)
+        self.bright_mfd.sliderReleased.connect(
+            lambda: self.backend.set_brightness("mfd", self.bright_mfd.value())
+        )
+        bri_row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
+        bri_row.addWidget(self.bright_led, 1)
+        bri_row.addWidget(QLabel(i18n.t("output.label_brightness_mfd")))
+        bri_row.addWidget(self.bright_mfd, 1)
+        outer.addLayout(bri_row)
 
+        # Buttons + Fortschritt
+        test_row = QHBoxLayout()
         self.btn_test_all = QPushButton(i18n.t("output.btn_test_all"))
         self.btn_test_all.clicked.connect(self._start_full_test)
-        row.addWidget(self.btn_test_all)
+
+        btn_sweep = QPushButton(i18n.t("output.btn_sweep"))
+        btn_on    = QPushButton(i18n.t("output.btn_all_on"))
+        btn_off   = QPushButton(i18n.t("output.btn_all_off"))
+        btn_sweep.clicked.connect(lambda: self.backend.led_sweep())
+        btn_on.clicked.connect(lambda: self.backend.all_leds("green"))
+        btn_off.clicked.connect(lambda: self.backend.all_leds("off"))
 
         self.test_progress = QProgressBar()
         self.test_progress.setRange(0, 100)
         self.test_progress.setValue(0)
         self.test_progress.setTextVisible(True)
-        self.test_progress.setFixedWidth(300)
-        row.addWidget(self.test_progress)
+        self.test_progress.setFixedWidth(200)
 
-        row.addStretch(1)
-        outer.addLayout(row)
+        test_row.addWidget(self.btn_test_all)
+        test_row.addWidget(btn_sweep)
+        test_row.addWidget(btn_on)
+        test_row.addWidget(btn_off)
+        test_row.addWidget(self.test_progress)
+        test_row.addStretch(1)
+        outer.addLayout(test_row)
         return box
 
     # -- Volltest ----------------------------------------------------------
@@ -142,34 +215,28 @@ class OutputTab(QWidget):
         THROTTLE_KEYS = ["e", "d", "clutch", "throttle"]
         led_map = {key: states for key, _label, states in PRO_LEDS()}
 
-        # Flackern
         for target in ("mfd", "led"):
             steps.append(("brightness", target, 0))
         for target in ("mfd", "led"):
             steps.append(("brightness", target, 128))
 
-        # Alle aus
         for key in STICK_KEYS + THROTTLE_KEYS:
             if key in led_map:
                 steps.append(("led", key, "off"))
 
-        # Stick-LEDs
         for key in STICK_KEYS:
             for state in led_map.get(key, ())[1:]:
                 steps.append(("led", key, state))
             steps.append(("led", key, "off"))
 
-        # Throttle-LEDs
         for key in THROTTLE_KEYS:
             for state in led_map.get(key, ())[1:]:
                 steps.append(("led", key, state))
             steps.append(("led", key, "off"))
 
-        # MFD leeren
         for line in range(MFD_LINES):
             steps.append(("mfd", line, ""))
 
-        # MFD ASCII-Test
         for line, text in enumerate([
             "ABCDEFGHIJKLMNOP",
             "abcdefghijklmnop",
@@ -177,11 +244,9 @@ class OutputTab(QWidget):
         ]):
             steps.append(("mfd", line, text))
 
-        # MFD leeren
         for line in range(MFD_LINES):
             steps.append(("mfd", line, ""))
 
-        # Ende: alles grün/an
         for key in STICK_KEYS + THROTTLE_KEYS:
             states = led_map.get(key, ())
             final  = "green" if "green" in states else ("on" if "on" in states else states[-1])
@@ -228,12 +293,6 @@ class OutputTab(QWidget):
 
     def _refresh_availability(self) -> None:
         avail = self.backend.available
-        if avail:
-            self.status.setText(
-                i18n.t("output.status_available", binary=self.backend.config.binary)
-            )
-        else:
-            self.status.setText(i18n.t("output.status_unavailable"))
         for combo in self._led_boxes.values():
             combo.setEnabled(avail)
         self.clutch_checkbox.setEnabled(avail)
@@ -253,12 +312,9 @@ class OutputTab(QWidget):
         clutch_checked = self.clutch_checkbox.isChecked()
         led_states = {k: combo.currentText() for k, combo in self._led_boxes.items()}
 
-        self.status = QLabel()
-        self.status.setWordWrap(True)
-        layout.addWidget(self.status)
         layout.addWidget(self._build_leds())
+        layout.addWidget(self._build_mfd())
         layout.addWidget(self._build_clutch())
-        layout.addWidget(self._build_brightness())
         layout.addWidget(self._build_test())
         layout.addStretch(1)
 
