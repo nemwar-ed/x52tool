@@ -170,6 +170,8 @@ class OutputTab(QWidget):
         self.chk_12h_clock2.blockSignals(True)
         self.combo_offset3.blockSignals(True)
         self.chk_12h_clock3.blockSignals(True)
+        self.clutch_checkbox.blockSignals(True)
+        self.clutch_latched.blockSignals(True)
 
         self.chk_local_time.setChecked(mfd.local_time)
         self.chk_12h_clock1.setChecked(mfd.clock1_12h)
@@ -184,6 +186,8 @@ class OutputTab(QWidget):
         if idx3 >= 0:
             self.combo_offset3.setCurrentIndex(idx3)
         self.chk_12h_clock3.setChecked(mfd.clock3_12h)
+        self.clutch_checkbox.setChecked(mfd.clutch_active)
+        self.clutch_latched.setChecked(mfd.clutch_latched)
 
         self.chk_local_time.blockSignals(False)
         self.chk_12h_clock1.blockSignals(False)
@@ -192,20 +196,30 @@ class OutputTab(QWidget):
         self.chk_12h_clock2.blockSignals(False)
         self.combo_offset3.blockSignals(False)
         self.chk_12h_clock3.blockSignals(False)
+        self.clutch_checkbox.blockSignals(False)
+        self.clutch_latched.blockSignals(False)
 
     def _build_clutch(self) -> QGroupBox:
         box    = QGroupBox(i18n.t("output.group_clutch"))
         layout = QHBoxLayout(box)
         self.clutch_checkbox = QCheckBox(i18n.t("output.clutch_checkbox"))
-        self.clutch_checkbox.toggled.connect(
-            lambda checked: self.backend.set_clutch(checked)
-        )
+        self.clutch_checkbox.toggled.connect(self._on_clutch_changed)
         self.clutch_latched = QCheckBox(i18n.t("output.clutch_latched"))
+        self.clutch_latched.toggled.connect(self._on_clutch_changed)
         layout.addStretch(1)
         layout.addWidget(self.clutch_checkbox)
         layout.addWidget(self.clutch_latched)
         layout.addStretch(1)
         return box
+
+    def _on_clutch_changed(self) -> None:
+        self.backend.set_clutch(self.clutch_checkbox.isChecked())
+        self.settings.mfd.clutch_active  = self.clutch_checkbox.isChecked()
+        self.settings.mfd.clutch_latched = self.clutch_latched.isChecked()
+        try:
+            self.settings.save()
+        except OSError:
+            pass
 
     def _build_test(self) -> QGroupBox:
         box   = QGroupBox(i18n.t("output.group_test"))
@@ -235,6 +249,10 @@ class OutputTab(QWidget):
         mfd_row.addStretch(1)
         outer.addLayout(mfd_row)
 
+        # Abstand
+        from PyQt6.QtWidgets import QSpacerItem, QSizePolicy
+        outer.addSpacing(12)
+
         # Helligkeit-Label zentriert
         bri_label_row = QHBoxLayout()
         bri_label_row.addStretch(1)
@@ -242,29 +260,26 @@ class OutputTab(QWidget):
         bri_label_row.addStretch(1)
         outer.addLayout(bri_label_row)
 
-        # LED-Slider
-        led_row = QHBoxLayout()
+        # Beide Slider nebeneinander
+        sliders_row = QHBoxLayout()
         self.bright_led = QSlider(Qt.Orientation.Horizontal)
         self.bright_led.setRange(0, 128)
         self.bright_led.setValue(128)
         self.bright_led.sliderReleased.connect(
             lambda: self.backend.set_brightness("led", self.bright_led.value())
         )
-        led_row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
-        led_row.addWidget(self.bright_led, 1)
-        outer.addLayout(led_row)
-
-        # MFD-Slider
-        mfd_row = QHBoxLayout()
         self.bright_mfd = QSlider(Qt.Orientation.Horizontal)
         self.bright_mfd.setRange(0, 128)
         self.bright_mfd.setValue(128)
         self.bright_mfd.sliderReleased.connect(
             lambda: self.backend.set_brightness("mfd", self.bright_mfd.value())
         )
-        mfd_row.addWidget(QLabel(i18n.t("output.label_brightness_mfd")))
-        mfd_row.addWidget(self.bright_mfd, 1)
-        outer.addLayout(mfd_row)
+        sliders_row.addWidget(QLabel(i18n.t("output.label_brightness_led")))
+        sliders_row.addWidget(self.bright_led, 1)
+        sliders_row.addSpacing(16)
+        sliders_row.addWidget(QLabel(i18n.t("output.label_brightness_mfd")))
+        sliders_row.addWidget(self.bright_mfd, 1)
+        outer.addLayout(sliders_row)
 
         return box
 

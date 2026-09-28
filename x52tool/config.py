@@ -38,14 +38,16 @@ class BackendConfig:
 
 @dataclass
 class MfdConfig:
-    """MFD-Uhr- und Datumseinstellungen."""
-    local_time:  bool = False
-    clock1_12h:  bool = False
-    date_fmt:    str  = "DD-MM-YY"
-    offset2:     int  = 0   # GMT-Versatz in Minuten
-    clock2_12h:  bool = False
-    offset3:     int  = 0
-    clock3_12h:  bool = False
+    """MFD-Uhr- und Datumseinstellungen sowie Clutch-Modi."""
+    local_time:    bool = False
+    clock1_12h:    bool = False
+    date_fmt:      str  = "DD-MM-YY"
+    offset2:       int  = 0
+    clock2_12h:    bool = False
+    offset3:       int  = 0
+    clock3_12h:    bool = False
+    clutch_active: bool = False
+    clutch_latched: bool = False
 
 
 @dataclass
