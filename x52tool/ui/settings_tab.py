@@ -157,13 +157,13 @@ class SettingsTab(QWidget):
         self.btn_svc_stop.setEnabled(s.state is ServiceState.RUNNING)
 
     def _on_svc_start(self) -> None:
-        ok, err = svc.start()
+        ok, err = svc.start_all()
         if not ok:
             log.error("x52d starten fehlgeschlagen: %s", err)
         self._refresh_service()
 
     def _on_svc_stop(self) -> None:
-        ok, err = svc.stop()
+        ok, err = svc.stop_all()
         if not ok:
             log.error("x52d stoppen fehlgeschlagen: %s", err)
         self._refresh_service()

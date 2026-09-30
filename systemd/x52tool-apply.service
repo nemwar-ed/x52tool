@@ -1,0 +1,12 @@
+[Unit]
+Description=x52tool – Kalibrierungsprofil beim Start anwenden
+After=x52d.service
+Requires=x52d.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -m x52tool --apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=x52d.service
