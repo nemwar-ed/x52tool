@@ -21,19 +21,24 @@ def config_path() -> Path:
 
 @dataclass
 class BackendConfig:
-    """Wie das externe libx52-CLI aufgerufen wird.
+    """Wie x52ctl aufgerufen wird.
 
-    Die Vorlagen sind bewusst Text und in der Oberflaeche editierbar: die
-    genaue Syntax haengt davon ab, ob x52cli oder der Daemon-Client x52ctl
-    installiert ist und in welcher Version. Einmal gegen `--help` pruefen,
-    anpassen, fertig.
+    x52ctl spricht mit dem x52d-Daemon ueber den Socket /run/x52d.cmd.
+    Das Protokoll: x52ctl config set <Section> <Key> <Value>
+
+    Die Vorlagen sind bewusst Text und in der Oberflaeche editierbar,
+    falls sich die Syntax in einer kuenftigen libx52-Version aendert.
     """
 
     binary: str = ""
-    led: str = "{bin} led {led} {state}"
-    mfd: str = "{bin} mfd {line} {text}"
-    brightness: str = "{bin} bri {target} {value}"
-    clutch: str = "{bin} -c {value}"
+    # LED: Section "LED", Key = LED-Name, Value = Zustand
+    led: str = "{bin} config set LED {led} {state}"
+    # MFD-Text: Section "MFD", Key = "Line{line}", Value = Text
+    mfd: str = "{bin} config set MFD Line{line} {text}"
+    # Helligkeit: Section "Brightness", Key = MFD oder LED
+    brightness: str = "{bin} config set Brightness {target} {value}"
+    # Clutch: Section "Profiles", Key = ClutchEnabled
+    clutch: str = "{bin} config set Profiles ClutchEnabled {value}"
 
 
 @dataclass
