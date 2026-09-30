@@ -1,9 +1,0 @@
-[Unit]
-Description=x52tool – MFD Uhrzeit-Tick für x52d
-After=x52d.service
-Requires=x52d.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 -m x52tool --clock
-# Pfad zum installierten Modul; bei pip install --user wird das automatisch gefunden
