@@ -37,6 +37,12 @@ class BackendConfig:
 
 
 @dataclass
+class ServiceConfig:
+    """Einstellungen fuer den x52d systemd user service."""
+    enabled: bool = True   # ob der Service beim Login automatisch starten soll
+
+
+@dataclass
 class MfdConfig:
     """MFD-Uhr- und Datumseinstellungen sowie Clutch-Modi."""
     local_time:    bool = False
@@ -54,6 +60,7 @@ class MfdConfig:
 class Settings:
     backend: BackendConfig = field(default_factory=BackendConfig)
     mfd: MfdConfig = field(default_factory=MfdConfig)
+    service: ServiceConfig = field(default_factory=ServiceConfig)
     # Kalibrierprofile je USB-ID: {"06a3:0762": {"0": {"flat": 512, ...}}}
     profiles: dict[str, dict[str, dict[str, int]]] = field(default_factory=dict)
     last_device_path: str = ""
@@ -86,9 +93,11 @@ class Settings:
         backend = BackendConfig(**raw.pop("backend", {}))
         mfd_raw = raw.pop("mfd", {})
         mfd = MfdConfig(**{k: v for k, v in mfd_raw.items() if k in MfdConfig.__dataclass_fields__})
+        svc_raw = raw.pop("service", {})
+        service = ServiceConfig(**{k: v for k, v in svc_raw.items() if k in ServiceConfig.__dataclass_fields__})
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
-        filtered = {k: v for k, v in raw.items() if k in known and k not in ("backend", "mfd")}
-        return cls(backend=backend, mfd=mfd, **filtered)
+        filtered = {k: v for k, v in raw.items() if k in known and k not in ("backend", "mfd", "service")}
+        return cls(backend=backend, mfd=mfd, service=service, **filtered)
 
     def save(self) -> Path:
         path = config_path()

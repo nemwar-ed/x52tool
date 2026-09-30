@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
 )
 
 from .. import i18n
+from .. import service as svc
+from ..service import ServiceState
 from ..logger import log_path, diag_log_path, write_diag_log, get_logger
 
 log = get_logger("settings")
@@ -81,10 +83,36 @@ class SettingsTab(QWidget):
         row_log.addWidget(self.btn_create_diag)
         row_log.addStretch(1)
 
+        # --- Service ---
+        self.group_service = QGroupBox(i18n.t("settings.group_service"))
+        svc_layout = QVBoxLayout(self.group_service)
+
+        self.lbl_service_status = QLabel()
+        svc_layout.addWidget(self.lbl_service_status)
+
+        btn_row = QHBoxLayout()
+        self.btn_svc_start  = QPushButton(i18n.t("settings.btn_svc_start"))
+        self.btn_svc_stop   = QPushButton(i18n.t("settings.btn_svc_stop"))
+        self.btn_svc_start.clicked.connect(self._on_svc_start)
+        self.btn_svc_stop.clicked.connect(self._on_svc_stop)
+        btn_row.addStretch(1)
+        btn_row.addWidget(self.btn_svc_start)
+        btn_row.addWidget(self.btn_svc_stop)
+        btn_row.addStretch(1)
+        svc_layout.addLayout(btn_row)
+
+        # Status alle 3 Sekunden aktualisieren
+        self._svc_timer = QTimer(self)
+        self._svc_timer.setInterval(3000)
+        self._svc_timer.timeout.connect(self._refresh_service)
+        self._svc_timer.start()
+        self._refresh_service()
+
         # --- Layout ---
         layout = QVBoxLayout(self)
         layout.addWidget(self.group_lang)
         layout.addWidget(self.hint_restart)
+        layout.addWidget(self.group_service)
         layout.addWidget(self.group_device)
         layout.addWidget(self.group_log)
         layout.addStretch(1)
@@ -105,6 +133,40 @@ class SettingsTab(QWidget):
     def _update_buttons(self, lang: str) -> None:
         self.btn_de.setChecked(lang == "de")
         self.btn_en.setChecked(lang == "en")
+
+    # -- Service -----------------------------------------------------------
+
+    def _refresh_service(self) -> None:
+        s = svc.status()
+        if s.state is ServiceState.RUNNING:
+            text  = i18n.t("settings.svc_running")
+            color = "green"
+        elif s.state is ServiceState.FAILED:
+            text  = i18n.t("settings.svc_failed")
+            color = "red"
+        elif s.state is ServiceState.UNKNOWN:
+            text  = i18n.t("settings.svc_unknown")
+            color = "gray"
+        else:
+            text  = i18n.t("settings.svc_stopped")
+            color = "orange"
+        self.lbl_service_status.setText(
+            f"<span style='color:{color}'>●</span>  {text}"
+        )
+        self.btn_svc_start.setEnabled(s.state is not ServiceState.RUNNING)
+        self.btn_svc_stop.setEnabled(s.state is ServiceState.RUNNING)
+
+    def _on_svc_start(self) -> None:
+        ok, err = svc.start()
+        if not ok:
+            log.error("x52d starten fehlgeschlagen: %s", err)
+        self._refresh_service()
+
+    def _on_svc_stop(self) -> None:
+        ok, err = svc.stop()
+        if not ok:
+            log.error("x52d stoppen fehlgeschlagen: %s", err)
+        self._refresh_service()
 
     # -- Gerät -------------------------------------------------------------
 
@@ -166,9 +228,13 @@ class SettingsTab(QWidget):
         self.btn_de.setText(i18n.t("settings.btn_de"))
         self.btn_en.setText(i18n.t("settings.btn_en"))
         self.hint_restart.setText(i18n.t("settings.hint_restart"))
+        self.group_service.setTitle(i18n.t("settings.group_service"))
+        self.btn_svc_start.setText(i18n.t("settings.btn_svc_start"))
+        self.btn_svc_stop.setText(i18n.t("settings.btn_svc_stop"))
         self.group_device.setTitle(i18n.t("settings.group_device"))
         self.btn_rescan.setText(i18n.t("main.btn_rescan"))
         self.group_log.setTitle(i18n.t("settings.group_log"))
         self.btn_open_log.setText(i18n.t("settings.btn_open_log"))
         self.btn_create_diag.setText(i18n.t("settings.btn_create_diag"))
         self._update_buttons(i18n.active_language())
+        self._refresh_service()
