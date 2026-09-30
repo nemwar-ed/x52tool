@@ -1,0 +1,14 @@
+[Unit]
+Description=x52d – libx52 daemon for Saitek/Logitech X52 Pro
+Documentation=https://github.com/nemwar-ed/x52tool
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/x52d
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
