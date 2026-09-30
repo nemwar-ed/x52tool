@@ -1,10 +1,10 @@
-"""LED- und MFD-Ausgabe ueber x52ctl (Client des x52d-Daemons).
+"""LED- und MFD-Ausgabe.
 
-Die USB-Seite des X52 Pro wird ausschliesslich ueber den libx52-Daemon
-x52d angesprochen. x52ctl ist sein Client und der einzige unterstuetzte
-Weg, LEDs und MFD zu steuern. x52cli (Direktzugriff auf USB) wird nicht
-mehr verwendet - zwei Prozesse gleichzeitig auf dem Geraet wuerden es
-durcheinanderbringen.
+Die USB-Seite des X52 Pro ist durch libx52 bereits geloest. Dieses Modul
+baut das Protokoll nicht nach, sondern ruft das vorhandene CLI auf. Ein
+zweiter Prozess, der gleichzeitig auf MFD und LEDs schreibt, bringt das
+Geraet durcheinander - laeuft der Daemon x52d, sollte der Aufruf ueber
+dessen Client gehen statt direkt auf USB.
 
 Wenn du spaeter auf die C-Bibliothek umsteigen willst, ist `Backend` die
 einzige Klasse, die du ersetzen musst.
@@ -48,8 +48,9 @@ def PRO_LEDS() -> list[tuple[str, str, tuple[str, ...]]]:
 MFD_LINES = 3
 MFD_WIDTH = 16
 
-# Einziger unterstuetzter Client: x52ctl spricht mit dem laufenden x52d-Daemon.
-BINARY_CANDIDATES = ("x52ctl",)
+# Kandidaten in der Reihenfolge, in der gesucht wird. x52ctl spricht mit dem
+# Daemon, x52cli geht direkt auf das Geraet.
+BINARY_CANDIDATES = ("x52ctl", "x52cli")
 
 
 @dataclass
