@@ -22,6 +22,7 @@ from ..config import Settings
 from ..device import DeviceState, X52Device, scan
 from ..logger import get_logger
 from .calib2_tab import Calib2Tab
+from .elite_tab import EliteTab
 from .live_tab import LiveTab
 from .output_tab import OutputTab
 from .settings_tab import SettingsTab
@@ -56,12 +57,14 @@ class MainWindow(QMainWindow):
         self.tab_live     = LiveTab()
         self.tab_calib2   = Calib2Tab(self.settings)
         self.tab_output   = OutputTab(self.settings)
+        self.tab_elite    = EliteTab(self.settings)
         self.tab_settings = SettingsTab(settings=self.settings)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.tab_live,     "")
         self.tabs.addTab(self.tab_calib2,   "")
         self.tabs.addTab(self.tab_output,   "")
+        self.tabs.addTab(self.tab_elite,    "")
         self.tabs.addTab(self.tab_settings, "")
 
         self.tab_calib2.calibrationChanged.connect(self.tab_live.refresh_calibration)
@@ -101,7 +104,8 @@ class MainWindow(QMainWindow):
         self.tabs.setTabText(0, i18n.t("main.tab_live"))
         self.tabs.setTabText(1, i18n.t("main.tab_calib2"))
         self.tabs.setTabText(2, i18n.t("main.tab_output"))
-        self.tabs.setTabText(3, i18n.t("settings.tab_label"))
+        self.tabs.setTabText(3, i18n.t("elite.tab_label"))
+        self.tabs.setTabText(4, i18n.t("settings.tab_label"))
         if self.device is None:
             self.statusBar().showMessage(i18n.t("main.status_no_device"))
         else:
@@ -117,6 +121,7 @@ class MainWindow(QMainWindow):
         self.tab_live.retranslate()
         self.tab_calib2.retranslate()
         self.tab_output.retranslate()
+        self.tab_elite.retranslate()
         self.tab_settings.retranslate()
 
     # -- Geraeteverwaltung -------------------------------------------------

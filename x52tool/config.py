@@ -87,6 +87,7 @@ class Settings:
     rest_test_seconds: int = 10
     zero_fuzz_during_test: bool = True
     language: str = ""  # "" = aus LANG/LANGUAGE-Env, "de" oder "en" fuer manuell
+    ed_bindings_dir: str = ""  # "" = automatisch suchen
 
     # -- Profile -----------------------------------------------------------
 

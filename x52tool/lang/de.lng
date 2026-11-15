@@ -276,3 +276,26 @@ peak_ministick_label = Ministick (X + Y)
 peak_instr_ministick = Ministick in alle Richtungen bis zum Anschlag bewegen.
 peak_btn_skip        = Achse überspringen
 peak_btn_abort       = Abbrechen
+
+[elite]
+tab_label            = Elite Dangerous
+group_dir            = Bindings-Ordner
+btn_search           = Automatisch suchen
+btn_choose           = Ordner wählen …
+btn_open             = Ordner öffnen
+dlg_choose           = Bindings-Ordner von Elite Dangerous wählen
+dir_none             = Kein Bindings-Ordner gefunden.
+msg_not_found        = Gesucht in allen Steam-Bibliotheken sowie Heroic-, Faugus- und Lutris-Prefixen. Bitte den Ordner „…/Frontier Developments/Elite Dangerous/Options/Bindings“ manuell wählen.
+msg_invalid_dir      = „{path}“ sieht nicht nach einem Bindings-Ordner aus.
+group_names          = Eigene Tastennamen
+names_info           = Zeigt in Elite Dangerous die echten Beschriftungen des X52 Pro (z. B. „Fire A“, „T3“, „Clutch (i)“) statt „Joy 3“ an – in den Steuerungsoptionen und in Hinweistexten. Wirksam nach dem nächsten Spielstart.
+btn_install          = Tastennamen installieren
+btn_uninstall        = Tastennamen entfernen
+state_missing        = Status: nicht installiert
+state_ours           = Status: installiert ✓
+state_outdated       = Status: installiert, aber veraltet – bitte neu installieren
+state_foreign        = Status: eine fremde .buttonMap ist vorhanden – wird beim Installieren gesichert
+msg_installed        = Tastennamen installiert. Elite Dangerous neu starten.
+msg_backup           = Vorherige Datei gesichert: {files}
+msg_removed          = Tastennamen entfernt.
+msg_error            = Fehler: {error}
