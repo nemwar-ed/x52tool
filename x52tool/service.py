@@ -5,7 +5,7 @@ Dieses Modul fragt seinen Status ab und kann ihn starten/stoppen –
 ausschliesslich ueber 'systemctl' (kein --user, da system service).
 
 Der Socket /run/x52d.cmd muss fuer den aktuellen User schreibbar sein.
-Das erledigt /etc/tmpfiles.d/x52d-access.conf (einmalig per install.sh).
+Das erledigt ein systemd-Drop-in fuer x52d.service (einmalig per install.sh).
 """
 
 from __future__ import annotations

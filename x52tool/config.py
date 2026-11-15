@@ -44,15 +44,37 @@ class BackendConfig:
 @dataclass
 class MfdConfig:
     """MFD-Uhr- und Datumseinstellungen sowie Clutch-Modi."""
-    local_time:    bool = False
+    local_time:    bool = True
     clock1_12h:    bool = False
     date_fmt:      str  = "DD-MM-YY"
-    offset2:       int  = 0
+    tz2:           str  = "UTC"   # Zeitzonen-Name (Olson), wie x52d ihn erwartet
     clock2_12h:    bool = False
-    offset3:       int  = 0
+    tz3:           str  = "UTC"
     clock3_12h:    bool = False
     clutch_active: bool = False
     clutch_latched: bool = False
+
+
+def offset_to_tz(minutes: int) -> str:
+    """Alten GMT-Versatz (Minuten) in einen Zeitzonen-Namen umrechnen.
+
+    Etc/GMT-Zonen haben ein umgekehrtes Vorzeichen: GMT+2 = 'Etc/GMT-2'.
+    Halbe Stunden gibt es dort nicht -> Fallback UTC.
+    """
+    if minutes == 0 or minutes % 60:
+        return "UTC"
+    hours = minutes // 60
+    return f"Etc/GMT{'-' if hours > 0 else '+'}{abs(hours)}"
+
+
+def _is_legacy_backend(raw: dict) -> bool:
+    """True wenn die gespeicherte Backend-Konfiguration noch von x52cli stammt."""
+    if not raw:
+        return False
+    if Path(raw.get("binary", "") or "x52ctl").name != "x52ctl":
+        return True
+    templates = [raw.get(k, "") for k in ("led", "mfd", "brightness", "clutch")]
+    return any(t and "config set" not in t for t in templates)
 
 
 @dataclass
@@ -88,8 +110,24 @@ class Settings:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return cls()
-        backend = BackendConfig(**raw.pop("backend", {}))
+        backend_raw = raw.pop("backend", {})
         mfd_raw = raw.pop("mfd", {})
+        legacy = _is_legacy_backend(backend_raw)
+        if legacy:
+            # Alte x52cli-Vorlagen verwerfen -> x52ctl-Standardwerte
+            backend = BackendConfig()
+        else:
+            backend = BackendConfig(**{
+                k: v for k, v in backend_raw.items()
+                if k in BackendConfig.__dataclass_fields__
+            })
+        # Migration: GMT-Versatz (Minuten) -> Zeitzonen-Name
+        for n in ("2", "3"):
+            if f"tz{n}" not in mfd_raw and f"offset{n}" in mfd_raw:
+                mfd_raw[f"tz{n}"] = offset_to_tz(int(mfd_raw[f"offset{n}"] or 0))
+        if legacy:
+            # Unter x52cli stand der Default auf GMT – Lokalzeit ist gewollt
+            mfd_raw["local_time"] = True
         mfd = MfdConfig(**{k: v for k, v in mfd_raw.items() if k in MfdConfig.__dataclass_fields__})
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
         filtered = {k: v for k, v in raw.items() if k in known and k not in ("backend", "mfd")}

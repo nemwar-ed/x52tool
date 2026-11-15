@@ -121,11 +121,6 @@ class Backend:
             return CommandResult(printable, 1, "", str(exc))
         return CommandResult(printable, proc.returncode, proc.stdout, proc.stderr)
 
-    def run_raw(self, args: list[str]) -> CommandResult:
-        """Führt x52cli mit beliebigen Argumenten aus."""
-        binary = self.config.binary
-        return self._run([binary] + args)
-
     def preview(self, template: str, **values: object) -> str:
         try:
             return shlex.join(self._build(template, **values))
@@ -160,6 +155,44 @@ class Backend:
         Vorlage unten gegen `--help` des jeweiligen Programms pruefen.
         """
         return self._run(self._build(self.config.clutch, value="1" if enabled else "0"))
+
+    def set_config(self, section: str, key: str, value: str) -> CommandResult:
+        """Setzt einen beliebigen x52d-Konfigurationswert (nur zur Laufzeit)."""
+        return self._run([self.config.binary, "config", "set", section, key, value])
+
+    def save_config(self) -> CommandResult:
+        """Schreibt die aktuelle x52d-Konfiguration nach /etc/x52d/x52d.conf.
+
+        Ohne diesen Aufruf gelten 'config set'-Werte nur bis zum naechsten
+        Neustart von x52d.
+        """
+        return self._run([self.config.binary, "config", "save"])
+
+    def set_clock(
+        self,
+        primary_local: bool,
+        formats: tuple[bool, bool, bool],
+        date_fmt: str,
+        tz2: str,
+        tz3: str,
+    ) -> list[CommandResult]:
+        """Alle Uhr-Einstellungen an x52d senden und dauerhaft speichern.
+
+        formats: je Uhr True = 12hr, False = 24hr.
+        tz2/tz3: Zeitzonen-Namen (z.B. 'UTC', 'Europe/Berlin').
+        """
+        hr = ["12hr" if f else "24hr" for f in formats]
+        results = [
+            self.set_config("Clock", "PrimaryIsLocal", "yes" if primary_local else "no"),
+            self.set_config("Clock", "FormatPrimary",   hr[0]),
+            self.set_config("Clock", "FormatSecondary", hr[1]),
+            self.set_config("Clock", "FormatTertiary",  hr[2]),
+            self.set_config("Clock", "DateFormat", date_fmt),
+            self.set_config("Clock", "Secondary", tz2),
+            self.set_config("Clock", "Tertiary",  tz3),
+        ]
+        results.append(self.save_config())
+        return results
 
     # -- Testabläufe -------------------------------------------------------
 

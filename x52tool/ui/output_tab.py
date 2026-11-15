@@ -1,4 +1,4 @@
-"""Reiter 'LED / MFD': Ausgabe ueber das libx52-CLI."""
+"""Reiter 'LED / MFD': Ausgabe ueber x52ctl an den x52d-Daemon."""
 
 from __future__ import annotations
 
@@ -17,7 +17,32 @@ from PyQt6.QtWidgets import (
 )
 
 from ..output import PRO_LEDS, Backend, detect_binary
+from ..logger import get_logger
 from .. import i18n
+
+log = get_logger("output")
+
+# Oben in der Zeitzonen-Auswahl, danach alle uebrigen alphabetisch.
+COMMON_TIMEZONES = (
+    "UTC",
+    "Europe/London",
+    "Europe/Berlin",
+    "Europe/Moscow",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "Asia/Tokyo",
+    "Australia/Sydney",
+)
+
+
+def all_timezones() -> list[str]:
+    try:
+        from zoneinfo import available_timezones
+        return sorted(tz for tz in available_timezones() if "/" in tz or tz == "UTC")
+    except Exception:  # tzdata fehlt -> nur die festen Zonen
+        return list(COMMON_TIMEZONES)
 
 
 class OutputTab(QWidget):
@@ -87,25 +112,25 @@ class OutputTab(QWidget):
         # Uhr 2
         clock2_box = QGroupBox(i18n.t("output.mfd_clock2"))
         clock2_layout = QVBoxLayout(clock2_box)
-        self.combo_offset2 = QComboBox()
-        self._fill_offset_combo(self.combo_offset2)
+        self.combo_tz2 = QComboBox()
+        self._fill_tz_combo(self.combo_tz2)
         self.chk_12h_clock2 = QCheckBox(i18n.t("output.mfd_12h"))
-        self.combo_offset2.currentIndexChanged.connect(self._apply_clock)
+        self.combo_tz2.currentIndexChanged.connect(self._apply_clock)
         self.chk_12h_clock2.toggled.connect(self._apply_clock)
-        clock2_layout.addWidget(QLabel(i18n.t("output.mfd_gmt_offset")))
-        clock2_layout.addWidget(self.combo_offset2)
+        clock2_layout.addWidget(QLabel(i18n.t("output.mfd_timezone")))
+        clock2_layout.addWidget(self.combo_tz2)
         clock2_layout.addWidget(self.chk_12h_clock2)
 
         # Uhr 3
         clock3_box = QGroupBox(i18n.t("output.mfd_clock3"))
         clock3_layout = QVBoxLayout(clock3_box)
-        self.combo_offset3 = QComboBox()
-        self._fill_offset_combo(self.combo_offset3)
+        self.combo_tz3 = QComboBox()
+        self._fill_tz_combo(self.combo_tz3)
         self.chk_12h_clock3 = QCheckBox(i18n.t("output.mfd_12h"))
-        self.combo_offset3.currentIndexChanged.connect(self._apply_clock)
+        self.combo_tz3.currentIndexChanged.connect(self._apply_clock)
         self.chk_12h_clock3.toggled.connect(self._apply_clock)
-        clock3_layout.addWidget(QLabel(i18n.t("output.mfd_gmt_offset")))
-        clock3_layout.addWidget(self.combo_offset3)
+        clock3_layout.addWidget(QLabel(i18n.t("output.mfd_timezone")))
+        clock3_layout.addWidget(self.combo_tz3)
         clock3_layout.addWidget(self.chk_12h_clock3)
 
         clocks_row.addWidget(clock1_box, 1)
@@ -114,45 +139,57 @@ class OutputTab(QWidget):
         layout.addLayout(clocks_row)
         return box
 
-    def _fill_offset_combo(self, combo: QComboBox) -> None:
-        """GMT -12 bis +14 in 30-Minuten-Schritten."""
-        for h in range(-12, 15):
-            for m in (0, 30):
-                if h == 14 and m == 30:
-                    break
-                sign  = "+" if h >= 0 else ""
-                label = f"GMT {sign}{h}:{m:02d}"
-                combo.addItem(label, h * 60 + m)
-        # Default: GMT 0:00
-        idx = combo.findData(0)
-        if idx >= 0:
-            combo.setCurrentIndex(idx)
+    def _fill_tz_combo(self, combo: QComboBox) -> None:
+        """Zeitzonen: haeufige oben, darunter alle aus der tz-Datenbank."""
+        for tz in COMMON_TIMEZONES:
+            combo.addItem(tz, tz)
+        combo.insertSeparator(combo.count())
+        for tz in all_timezones():
+            if tz not in COMMON_TIMEZONES:
+                combo.addItem(tz, tz)
+        combo.setCurrentIndex(0)  # UTC
+
+    @staticmethod
+    def _select_tz(combo: QComboBox, tz: str) -> None:
+        idx = combo.findData(tz)
+        if idx < 0:
+            combo.addItem(tz, tz)
+            idx = combo.findData(tz)
+        combo.setCurrentIndex(idx)
 
     def _apply_clock(self) -> None:
-        """Sendet clock- und date-Befehle ans Gerät und speichert die Einstellungen."""
-        local = "local" if self.chk_local_time.isChecked() else "gmt"
-        hr1   = "12hr" if self.chk_12h_clock1.isChecked() else "24hr"
-        hr2   = "12hr" if self.chk_12h_clock2.isChecked() else "24hr"
-        hr3   = "12hr" if self.chk_12h_clock3.isChecked() else "24hr"
-
+        """Sendet die Uhr-Einstellungen an x52d, speichert sie dort dauerhaft
+        (x52ctl config save) und in der eigenen config.json."""
         fmt_map = {"DD-MM-YY": "ddmmyy", "MM-DD-YY": "mmddyy", "YY-MM-DD": "yymmdd"}
         date_fmt = fmt_map.get(self.combo_date_fmt.currentText(), "ddmmyy")
 
-        off2 = self.combo_offset2.currentData() or 0
-        off3 = self.combo_offset3.currentData() or 0
+        tz2 = self.combo_tz2.currentData() or "UTC"
+        tz3 = self.combo_tz3.currentData() or "UTC"
 
-        self.backend.run_raw(["clock", local, hr1, date_fmt])
-        self.backend.run_raw(["offset", "2", str(off2), hr2])
-        self.backend.run_raw(["offset", "3", str(off3), hr3])
+        if self.backend.available:
+            results = self.backend.set_clock(
+                primary_local=self.chk_local_time.isChecked(),
+                formats=(
+                    self.chk_12h_clock1.isChecked(),
+                    self.chk_12h_clock2.isChecked(),
+                    self.chk_12h_clock3.isChecked(),
+                ),
+                date_fmt=date_fmt,
+                tz2=tz2,
+                tz3=tz3,
+            )
+            for res in results:
+                if not res.ok:
+                    log.warning("Uhr-Einstellung fehlgeschlagen: %s", res.summary())
 
         # Einstellungen speichern
         mfd = self.settings.mfd
         mfd.local_time = self.chk_local_time.isChecked()
         mfd.clock1_12h = self.chk_12h_clock1.isChecked()
         mfd.date_fmt   = self.combo_date_fmt.currentText()
-        mfd.offset2    = off2
+        mfd.tz2        = tz2
         mfd.clock2_12h = self.chk_12h_clock2.isChecked()
-        mfd.offset3    = off3
+        mfd.tz3        = tz3
         mfd.clock3_12h = self.chk_12h_clock3.isChecked()
         try:
             self.settings.save()
@@ -166,9 +203,9 @@ class OutputTab(QWidget):
         self.chk_local_time.blockSignals(True)
         self.chk_12h_clock1.blockSignals(True)
         self.combo_date_fmt.blockSignals(True)
-        self.combo_offset2.blockSignals(True)
+        self.combo_tz2.blockSignals(True)
         self.chk_12h_clock2.blockSignals(True)
-        self.combo_offset3.blockSignals(True)
+        self.combo_tz3.blockSignals(True)
         self.chk_12h_clock3.blockSignals(True)
         self.clutch_checkbox.blockSignals(True)
         self.clutch_latched.blockSignals(True)
@@ -178,13 +215,9 @@ class OutputTab(QWidget):
         idx = self.combo_date_fmt.findText(mfd.date_fmt)
         if idx >= 0:
             self.combo_date_fmt.setCurrentIndex(idx)
-        idx2 = self.combo_offset2.findData(mfd.offset2)
-        if idx2 >= 0:
-            self.combo_offset2.setCurrentIndex(idx2)
+        self._select_tz(self.combo_tz2, mfd.tz2)
         self.chk_12h_clock2.setChecked(mfd.clock2_12h)
-        idx3 = self.combo_offset3.findData(mfd.offset3)
-        if idx3 >= 0:
-            self.combo_offset3.setCurrentIndex(idx3)
+        self._select_tz(self.combo_tz3, mfd.tz3)
         self.chk_12h_clock3.setChecked(mfd.clock3_12h)
         self.clutch_checkbox.setChecked(mfd.clutch_active)
         self.clutch_latched.setChecked(mfd.clutch_latched)
@@ -192,9 +225,9 @@ class OutputTab(QWidget):
         self.chk_local_time.blockSignals(False)
         self.chk_12h_clock1.blockSignals(False)
         self.combo_date_fmt.blockSignals(False)
-        self.combo_offset2.blockSignals(False)
+        self.combo_tz2.blockSignals(False)
         self.chk_12h_clock2.blockSignals(False)
-        self.combo_offset3.blockSignals(False)
+        self.combo_tz3.blockSignals(False)
         self.chk_12h_clock3.blockSignals(False)
         self.clutch_checkbox.blockSignals(False)
         self.clutch_latched.blockSignals(False)
