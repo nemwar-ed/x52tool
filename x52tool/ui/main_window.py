@@ -8,10 +8,12 @@ from PyQt6.QtCore import QSocketNotifier, Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -64,7 +66,12 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.tab_live,     "")
         self.tabs.addTab(self.tab_calib2,   "")
         self.tabs.addTab(self.tab_output,   "")
-        self.tabs.addTab(self.tab_elite,    "")
+        # Elite-Reiter ist hoch -> bei kleinen Fenstern scrollbar
+        self._elite_scroll = QScrollArea()
+        self._elite_scroll.setWidgetResizable(True)
+        self._elite_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._elite_scroll.setWidget(self.tab_elite)
+        self.tabs.addTab(self._elite_scroll, "")
         self.tabs.addTab(self.tab_settings, "")
 
         self.tab_calib2.calibrationChanged.connect(self.tab_live.refresh_calibration)

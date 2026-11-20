@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.0.4-beta
+
+### Neu: LEDs nach Schiffszustand (Elite Dangerous)
+Nach dem Vorbild von EDXLC: Die LED einer Taste zeigt den Zustand der darauf belegten Aktion.
+
+- `elite/binds.py`: liest die aktive Belegung (`StartPreset*.start` → neueste `<Preset>.*.binds`), sammelt alle Tasten auf dem X52 Pro (Primär, Sekundär, Achsen) und ordnet sie den LEDs zu (Joy_2 = Fire, Joy_3 = A, … Joy_31 = Clutch, Joy_ZAxis = Schubhebel)
+- `elite/status.py`: Schiffszustand aus `Status.json` (Flags, Flags2, GuiFocus, LegalState) und dem Journal (Landeerlaubnis, Unter Beschuss, Abfangen, Schilde unten, Hitze, Hüllenschaden); Bedingungen als Text, z. B. `LandingGearDown`, `!Supercruise`, `gui:GalaxyMap`, `event:DockingGranted`
+- `elite/rules.py`: vier Zustände (bereit / aktiv / gesperrt / dringend), höchster gewinnt; Farbschemata je Modus (Normal, Hardpoints, Nachtsicht, Schleichfahrt); Standardregeln wie EDXLC (Frachtschaufel, Scheinwerfer, Hardpoints, Nachtsicht, Schleichfahrt, Fahrwerk, Landeerlaubnis, Kühlkörper, Boost, FSD gesperrt/lädt, Geschwindigkeit in der Station) plus abgeschaltete Extras (Unter Beschuss, Abfangen). Regeln und Farben werden als Daten in `config.json` (`ed_leds`) gespeichert – Grundlage für den späteren Editor.
+- `elite/daemon.py`: Hintergrunddienst `x52tool-ed`; erkennt Elite am Prozess, setzt nur geänderte LEDs, blinkt im 500-ms-Takt, setzt nie dauerhaft und stellt nach dem Spiel die Grundfarben wieder her
+- `elite/ctl.py`: legt den systemd-User-Dienst an und schaltet ihn ein/aus
+- Elite-Reiter: Gruppe „LEDs nach Schiffszustand“ mit Dienst- und Spielstatus, Modus, aktiver `.binds` und Live-Tabelle (LED, Tasten, Aktionen, Zustand)
+- Elite-Reiter ist bei kleinen Fenstern scrollbar
+- Tests für Bindings, Zustand, Journal und Regeln
+
 ## v0.0.3.2-beta
 
 ### Neu

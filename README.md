@@ -42,7 +42,12 @@ Tested on: **Logitech X52 Professional** (USB-ID `06a3:0762`) on **CachyOS** (Ar
 
 ### Elite Dangerous
 - Finds the Bindings and journal folders automatically — including Steam libraries on other drives, Heroic, Faugus and Lutris. With several installs, the most recently played one wins.
-- Shows when `Status.json` (the ship state) was last updated — the basis for the planned LED rules per ship state
+- Shows when `Status.json` (the ship state) was last updated
+- **LEDs by ship state** (modelled on [EDXLC](https://github.com/andrewdsmith/edxlc)): a button's LED shows the state of the action bound to it — green = ready, amber = active, red = blocked, flashing = urgent. Examples: landing gear down → amber, FSD while mass-locked → red, docking granted → landing gear button flashes, overheating → heat sink button flashes. With hardpoints, night vision or silent running the whole colour scheme changes.
+  - Bindings are read automatically from your active `.binds`; where buttons share an LED (T1/T2, POV 2), the most important state wins
+  - Buttons without a matching action keep their base colour; all base colours return when the game ends
+  - Runs as the background service `x52tool-ed` (systemd, user) — on/off in the Elite tab, x52tool does not need to be open
+  - Live table in the Elite tab: LED, buttons, bound actions, current state
 - Installs custom button names (`.buttonMap`): Elite shows "Fire A", "T3", "Clutch (i)" instead of "Joy 3" — in the controls menu and in all in-game hints
 - Existing third-party `.buttonMap` files are backed up and restored on removal
 
@@ -157,6 +162,8 @@ python3 -m x52tool --apply --device /dev/input/event7
 | systemd drop-in | `/etc/systemd/system/x52d.service.d/x52tool-socket.conf` |
 | Logs | `~/.local/share/x52tool/x52tool.log`, `x52tool-diag.log` |
 | Elite button names | `…/Elite Dangerous/Options/Bindings/DeviceButtonMaps/` |
+| LED service (unit) | `~/.config/systemd/user/x52tool-ed.service` |
+| LED service (live state) | `$XDG_RUNTIME_DIR/x52tool/ed_leds.json` |
 | Elite journal / Status.json (read only) | `…/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous/` |
 
 ### Project layout
@@ -175,7 +182,8 @@ x52tool/
     ├── x52d_conf.py    persistent x52d configuration
     ├── service.py      x52d status / start / stop
     ├── config.py       settings and profiles
-    ├── elite/          Elite Dangerous (bindings lookup, .buttonMap)
+    ├── elite/          Elite Dangerous: folder lookup, .buttonMap, .binds,
+    │                   status/journal, LED rules, background service
     ├── lang/           de.lng, en.lng
     └── ui/             one module per tab
 ```
@@ -185,6 +193,7 @@ x52tool/
 ## Troubleshooting
 
 ```bash
+journalctl --user -u x52tool-ed -f          # follow the Elite LED service
 systemctl status x52d                       # is the service running?
 journalctl -u x52d -b                       # messages since boot
 x52ctl config get Clock FormatPrimary       # does the service answer?

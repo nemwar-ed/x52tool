@@ -42,7 +42,12 @@ Getestet auf: **Logitech X52 Professional** (USB-ID `06a3:0762`) unter **CachyOS
 
 ### Elite Dangerous
 - Findet Bindings- und Journal-Ordner automatisch – auch in Steam-Bibliotheken auf anderen Laufwerken, bei Heroic, Faugus und Lutris. Bei mehreren Installationen gewinnt die zuletzt gespielte.
-- Zeigt, wann `Status.json` (der Schiffszustand) zuletzt aktualisiert wurde – Grundlage für die geplanten LED-Regeln je Schiffszustand
+- Zeigt, wann `Status.json` (der Schiffszustand) zuletzt aktualisiert wurde
+- **LEDs nach Schiffszustand** (nach dem Vorbild von [EDXLC](https://github.com/andrewdsmith/edxlc)): Die LED einer Taste zeigt den Zustand der darauf belegten Aktion – grün = bereit, gelb = aktiv, rot = gesperrt, blinkend = dringend. Beispiele: Fahrwerk ausgefahren → gelb, FSD bei Massensperre → rot, Landeerlaubnis erteilt → Fahrwerk-Taste blinkt, Überhitzung → Kühlkörper-Taste blinkt. Bei Hardpoints, Nachtsicht und Schleichfahrt wechselt das ganze Farbschema.
+  - Die Belegung wird automatisch aus deiner aktiven `.binds` gelesen; teilen sich Tasten eine LED (T1/T2, POV 2), gewinnt der wichtigste Zustand
+  - Tasten ohne passende Aktion behalten ihre Grundfarbe; nach dem Spiel kommen alle Grundfarben zurück
+  - Läuft als Hintergrunddienst `x52tool-ed` (systemd, Benutzer) – Ein/Aus im Elite-Reiter, das x52tool muss nicht geöffnet sein
+  - Live-Tabelle im Elite-Reiter: LED, Tasten, belegte Aktionen, aktueller Zustand
 - Installiert eigene Tastennamen (`.buttonMap`): Elite zeigt „Fire A“, „T3“, „Clutch (i)“ statt „Joy 3“ an – im Steuerungsmenü und in allen Hinweistexten
 - Vorhandene fremde `.buttonMap`-Dateien werden gesichert und beim Entfernen wiederhergestellt
 
@@ -157,6 +162,8 @@ python3 -m x52tool --apply --device /dev/input/event7
 | systemd-Drop-in | `/etc/systemd/system/x52d.service.d/x52tool-socket.conf` |
 | Logs | `~/.local/share/x52tool/x52tool.log`, `x52tool-diag.log` |
 | Elite-Tastennamen | `…/Elite Dangerous/Options/Bindings/DeviceButtonMaps/` |
+| LED-Dienst (Unit) | `~/.config/systemd/user/x52tool-ed.service` |
+| LED-Dienst (Live-Zustand) | `$XDG_RUNTIME_DIR/x52tool/ed_leds.json` |
 | Elite-Journal / Status.json (nur gelesen) | `…/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous/` |
 
 ### Projektstruktur
@@ -175,7 +182,8 @@ x52tool/
     ├── x52d_conf.py    dauerhafte x52d-Konfiguration
     ├── service.py      Status / Start / Stopp von x52d
     ├── config.py       Einstellungen und Profile
-    ├── elite/          Elite Dangerous (Bindings-Suche, .buttonMap)
+    ├── elite/          Elite Dangerous: Ordnersuche, .buttonMap, .binds,
+    │                   Status/Journal, LED-Regeln, Hintergrunddienst
     ├── lang/           de.lng, en.lng
     └── ui/             ein Modul pro Reiter
 ```
@@ -185,6 +193,7 @@ x52tool/
 ## Fehlersuche
 
 ```bash
+journalctl --user -u x52tool-ed -f          # LED-Dienst für Elite live mitlesen
 systemctl status x52d                       # läuft der Dienst?
 journalctl -u x52d -b                       # Meldungen seit dem Systemstart
 x52ctl config get Clock FormatPrimary       # antwortet der Dienst?
