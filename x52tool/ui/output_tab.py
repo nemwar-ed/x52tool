@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 from ..output import PRO_LEDS, Backend, detect_binary
 from ..logger import get_logger
 from .. import i18n
+from .. import x52d_conf
 
 log = get_logger("output")
 
@@ -54,7 +55,49 @@ class OutputTab(QWidget):
         self._build()
         self._refresh_availability()
         self._load_mfd_settings()
+        self._load_hw_state()
         self._apply_clock()
+
+    def _load_hw_state(self) -> None:
+        """LED-Farben und Helligkeit aus der von x52d geladenen Datei anzeigen.
+
+        Damit zeigt die Oberflaeche den Zustand, den das Geraet tatsaechlich
+        hat, statt beim Start alles auf 'off' zu stellen.
+        """
+        values = x52d_conf.read_all()
+        for key, combo in self._led_boxes.items():
+            state = values.get(("led", key.lower()))
+            idx = combo.findText(state) if state else -1
+            if idx >= 0:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(idx)
+                combo.blockSignals(False)
+        for target, slider in (("led", self.bright_led), ("mfd", self.bright_mfd)):
+            raw = values.get(("brightness", target))
+            try:
+                value = int(raw) if raw is not None else None
+            except ValueError:
+                value = None
+            if value is not None:
+                slider.blockSignals(True)
+                slider.setValue(max(0, min(128, value)))
+                slider.blockSignals(False)
+
+    def _set_all_leds(self, wanted: str) -> None:
+        """Alle LEDs ueber die Auswahlfelder setzen – so bleiben Anzeige,
+        Geraet und gespeicherte Konfiguration einheitlich."""
+        for combo in self._led_boxes.values():
+            states = [combo.itemText(i) for i in range(combo.count())]
+            target = wanted if wanted in states else ("on" if wanted != "off" else "off")
+            if target in states:
+                combo.setCurrentText(target)
+
+    def _restore_hw_state(self) -> None:
+        """Nach dem Volltest den eingestellten Zustand wiederherstellen."""
+        for key, combo in self._led_boxes.items():
+            self.backend.set_led(key, combo.currentText(), persist=False)
+        self.backend.set_brightness("led", self.bright_led.value(), persist=False)
+        self.backend.set_brightness("mfd", self.bright_mfd.value(), persist=False)
 
     # -- Aufbau ------------------------------------------------------------
 
@@ -158,8 +201,8 @@ class OutputTab(QWidget):
         combo.setCurrentIndex(idx)
 
     def _apply_clock(self) -> None:
-        """Sendet die Uhr-Einstellungen an x52d, speichert sie dort dauerhaft
-        (x52ctl config save) und in der eigenen config.json."""
+        """Sendet die Uhr-Einstellungen an x52d, speichert sie dauerhaft in der
+        von x52d geladenen Datei (siehe x52d_conf) und in der config.json."""
         fmt_map = {"DD-MM-YY": "ddmmyy", "MM-DD-YY": "mmddyy", "YY-MM-DD": "yymmdd"}
         date_fmt = fmt_map.get(self.combo_date_fmt.currentText(), "ddmmyy")
 
@@ -262,8 +305,8 @@ class OutputTab(QWidget):
         btn_row = QHBoxLayout()
         btn_on  = QPushButton(i18n.t("output.btn_all_on"))
         btn_off = QPushButton(i18n.t("output.btn_all_off"))
-        btn_on.clicked.connect(lambda: self.backend.all_leds("green"))
-        btn_off.clicked.connect(lambda: self.backend.all_leds("off"))
+        btn_on.clicked.connect(lambda: self._set_all_leds("green"))
+        btn_off.clicked.connect(lambda: self._set_all_leds("off"))
         btn_row.addStretch(1)
         btn_row.addWidget(btn_on)
         btn_row.addWidget(btn_off)
@@ -274,8 +317,8 @@ class OutputTab(QWidget):
         mfd_row = QHBoxLayout()
         btn_mfd_on  = QPushButton(i18n.t("output.btn_mfd_on"))
         btn_mfd_off = QPushButton(i18n.t("output.btn_mfd_off"))
-        btn_mfd_on.clicked.connect(lambda: self.backend.set_brightness("mfd", 128))
-        btn_mfd_off.clicked.connect(lambda: self.backend.set_brightness("mfd", 0))
+        btn_mfd_on.clicked.connect(lambda: self.bright_mfd.setValue(128))
+        btn_mfd_off.clicked.connect(lambda: self.bright_mfd.setValue(0))
         mfd_row.addStretch(1)
         mfd_row.addWidget(btn_mfd_on)
         mfd_row.addWidget(btn_mfd_off)
@@ -398,15 +441,16 @@ class OutputTab(QWidget):
         if self._test_idx >= self._test_total:
             self._test_timer.stop()
             self.btn_test_all.setEnabled(True)
+            self._restore_hw_state()
             self._apply_clock()
             return
         step = self._test_steps[self._test_idx]
         kind = step[0]
         if kind == "brightness":
-            self.backend.set_brightness(step[1], step[2])
+            self.backend.set_brightness(step[1], step[2], persist=False)
             self._test_timer.setInterval(500)
         elif kind == "led":
-            self.backend.set_led(step[1], step[2])
+            self.backend.set_led(step[1], step[2], persist=False)
             self._test_timer.setInterval(180)
         elif kind == "mfd":
             self.backend.set_mfd_line(step[1], step[2])
@@ -442,6 +486,7 @@ class OutputTab(QWidget):
         layout.addStretch(1)
 
         self._load_mfd_settings()
+        self._load_hw_state()
         for k, state in led_states.items():
             combo = self._led_boxes.get(k)
             if combo:

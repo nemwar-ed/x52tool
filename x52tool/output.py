@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 from .config import BackendConfig
 from . import i18n
+from . import x52d_conf
 
 # Reihenfolge wie auf dem Geraet, oben nach unten.
 # Zweifarbige LEDs koennen rot/gelb/gruen, einfarbige nur an/aus.
@@ -129,44 +130,57 @@ class Backend:
 
     # -- oeffentliche Befehle ---------------------------------------------
 
-    def set_led(self, led: str, state: str) -> CommandResult:
-        return self._run(self._build(self.config.led, led=led, state=state))
+    def _persist(self, result: CommandResult, *items: tuple[str, str, str]) -> None:
+        """Erfolgreich gesetzte Werte in die von x52d geladene Datei schreiben."""
+        if result.ok:
+            x52d_conf.set_values(list(items))
+
+    def set_led(self, led: str, state: str, persist: bool = True) -> CommandResult:
+        result = self._run(self._build(self.config.led, led=led, state=state))
+        if persist:
+            self._persist(result, ("LED", x52d_conf.canonical_key("LED", led), state))
+        return result
 
     def set_mfd_line(self, line: int, text: str) -> CommandResult:
+        """MFD-Text wird bewusst nicht gespeichert (nur Anzeige zur Laufzeit)."""
         return self._run(
             self._build(self.config.mfd, line=line, text=truncate_mfd(text))
         )
 
-    def set_brightness(self, target: str, value: int) -> CommandResult:
+    def set_brightness(self, target: str, value: int, persist: bool = True) -> CommandResult:
         """target ist 'mfd' oder 'led'."""
-        return self._run(
+        result = self._run(
             self._build(self.config.brightness, target=target, value=value)
         )
+        if persist:
+            self._persist(
+                result,
+                ("Brightness", x52d_conf.canonical_key("Brightness", target), str(value)),
+            )
+        return result
 
-    def set_clutch(self, enabled: bool) -> CommandResult:
+    def set_clutch(self, enabled: bool, persist: bool = True) -> CommandResult:
         """Kupplungsmodus (Clutch Mode) an- oder abschalten.
 
         Ist dieser Modus am Geraet aktiv, liest der Kernel-Treiber (usbhid)
         Taste 31 (Clutch, aufgedrucktes Symbol ein "i" im Kreis) nicht mehr
         als normalen Joystick-Button ein - sie bleibt dann unsichtbar,
-        obwohl sie physisch gedrueckt wird. Ob dieser Befehl ueber den
-        Daemon-Client (x52ctl) oder nur direkt per libusb (x52cli) geht,
-        ist je nach libx52-Version unterschiedlich - im Zweifel die
-        Vorlage unten gegen `--help` des jeweiligen Programms pruefen.
+        obwohl sie physisch gedrueckt wird.
         """
-        return self._run(self._build(self.config.clutch, value="1" if enabled else "0"))
+        value = "1" if enabled else "0"
+        result = self._run(self._build(self.config.clutch, value=value))
+        if persist:
+            self._persist(result, ("Profiles", "ClutchEnabled", value))
+        return result
 
-    def set_config(self, section: str, key: str, value: str) -> CommandResult:
-        """Setzt einen beliebigen x52d-Konfigurationswert (nur zur Laufzeit)."""
-        return self._run([self.config.binary, "config", "set", section, key, value])
-
-    def save_config(self) -> CommandResult:
-        """Schreibt die aktuelle x52d-Konfiguration nach /etc/x52d/x52d.conf.
-
-        Ohne diesen Aufruf gelten 'config set'-Werte nur bis zum naechsten
-        Neustart von x52d.
-        """
-        return self._run([self.config.binary, "config", "save"])
+    def set_config(
+        self, section: str, key: str, value: str, persist: bool = True
+    ) -> CommandResult:
+        """Setzt einen x52d-Konfigurationswert live und (standardmaessig) dauerhaft."""
+        result = self._run([self.config.binary, "config", "set", section, key, value])
+        if persist:
+            self._persist(result, (section, key, value))
+        return result
 
     def set_clock(
         self,
@@ -180,35 +194,43 @@ class Backend:
 
         formats: je Uhr True = 12hr, False = 24hr.
         tz2/tz3: Zeitzonen-Namen (z.B. 'UTC', 'Europe/Berlin').
+
+        Hinweis: `x52ctl config save` wird nicht verwendet – es speichert in
+        libx52 nichts. Persistiert wird ueber x52d_conf (siehe dort).
         """
         hr = ["12hr" if f else "24hr" for f in formats]
-        results = [
-            self.set_config("Clock", "PrimaryIsLocal", "yes" if primary_local else "no"),
-            self.set_config("Clock", "FormatPrimary",   hr[0]),
-            self.set_config("Clock", "FormatSecondary", hr[1]),
-            self.set_config("Clock", "FormatTertiary",  hr[2]),
-            self.set_config("Clock", "DateFormat", date_fmt),
-            self.set_config("Clock", "Secondary", tz2),
-            self.set_config("Clock", "Tertiary",  tz3),
+        wanted = [
+            ("Clock", "PrimaryIsLocal", "yes" if primary_local else "no"),
+            ("Clock", "FormatPrimary",   hr[0]),
+            ("Clock", "FormatSecondary", hr[1]),
+            ("Clock", "FormatTertiary",  hr[2]),
+            ("Clock", "DateFormat", date_fmt),
+            ("Clock", "Secondary", tz2),
+            ("Clock", "Tertiary",  tz3),
         ]
-        results.append(self.save_config())
+        results = [self.set_config(*item, persist=False) for item in wanted]
+        x52d_conf.set_values(
+            [item for item, res in zip(wanted, results) if res.ok]
+        )
         return results
 
     # -- Testabläufe -------------------------------------------------------
 
     def led_sweep(self) -> list[CommandResult]:
-        """Jede LED einmal durch alle Zustaende. Findet tote LEDs."""
+        """Jede LED einmal durch alle Zustaende. Findet tote LEDs (nicht gespeichert)."""
         results: list[CommandResult] = []
         for key, _label, states in PRO_LEDS():
             for state in states[1:]:
-                results.append(self.set_led(key, state))
-            results.append(self.set_led(key, "off"))
+                results.append(self.set_led(key, state, persist=False))
+            results.append(self.set_led(key, "off", persist=False))
         return results
 
-    def all_leds(self, state: str) -> list[CommandResult]:
+    def all_leds(self, state: str, persist: bool = True) -> list[CommandResult]:
         results = []
         for key, _label, states in PRO_LEDS():
-            results.append(self.set_led(key, state if state in states else states[-1]))
+            results.append(
+                self.set_led(key, state if state in states else states[-1], persist=persist)
+            )
         return results
 
     def mfd_test(self) -> list[CommandResult]:

@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 
 from .. import i18n
 from .. import service as svc
+from .. import x52d_conf
 from ..service import ServiceState
 from ..logger import log_path, diag_log_path, write_diag_log, get_logger
 
@@ -89,8 +90,10 @@ class SettingsTab(QWidget):
 
         self.lbl_svc_status = QLabel()
         self.lbl_svc_socket = QLabel()
+        self.lbl_svc_persist = QLabel()
         svc_layout.addWidget(self.lbl_svc_status)
         svc_layout.addWidget(self.lbl_svc_socket)
+        svc_layout.addWidget(self.lbl_svc_persist)
 
         btn_row = QHBoxLayout()
         self.btn_svc_start = QPushButton(i18n.t("settings.btn_svc_start"))
@@ -159,6 +162,15 @@ class SettingsTab(QWidget):
         self.lbl_svc_socket.setText(
             f"<span style='color:{sock_color}'>●</span>  {sock_text}"
         )
+
+        persist = x52d_conf.is_ready()
+        persist_text = i18n.t("settings.svc_persist_ok") if persist \
+            else i18n.t("settings.svc_persist_err")
+        persist_color = "green" if persist else "red"
+        self.lbl_svc_persist.setText(
+            f"<span style='color:{persist_color}'>●</span>  {persist_text}"
+        )
+        self.lbl_svc_persist.setToolTip(str(x52d_conf.conf_path()))
 
         self.btn_svc_start.setEnabled(s.state is not ServiceState.RUNNING)
         self.btn_svc_stop.setEnabled(s.state is ServiceState.RUNNING)

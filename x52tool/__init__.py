@@ -3,10 +3,11 @@
 Aufbau:
     device.py    Geraeteerkennung, evdev-Zugriff, ABS-Ioctls (Lesen/Schreiben)
     analysis.py  Ruhe- und Bereichsmessung, Deadzone-Vorschlag, udev-Regeln
-    output.py    LED- und MFD-Ausgabe ueber ein externes libx52-CLI
+    output.py    LED- und MFD-Ausgabe ueber x52ctl (x52d)
+    x52d_conf.py dauerhafte x52d-Konfiguration
     config.py    Profile und Einstellungen unter ~/.config/x52tool/
     ui/          PyQt6-Oberflaeche, ein Modul pro Reiter
 """
 
-__version__ = "0.0.3-beta"
+__version__ = "0.0.3.1-beta"
 __all__ = ["__version__"]
