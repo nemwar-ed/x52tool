@@ -1,11 +1,11 @@
-"""Reiter 'Elite Dangerous': Bindings-Ordner und eigene Tastennamen."""
+"""Reiter 'Elite Dangerous': Bindings-Ordner, Journal-Ordner und eigene Tastennamen."""
 
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QFileDialog,
     QGroupBox,
@@ -29,10 +29,18 @@ class EliteTab(QWidget):
         super().__init__(parent)
         self.settings = settings
         self._bindings: Path | None = None
+        self._journal: Path | None = None
         self._message = ""
+        self._journal_message = ""
         self._build()
         self._init_bindings()
+        self._init_journal()
         self.retranslate()
+        # Alter der Status.json laufend aktualisieren
+        self._journal_timer = QTimer(self)
+        self._journal_timer.setInterval(2000)
+        self._journal_timer.timeout.connect(self._refresh_journal)
+        self._journal_timer.start()
 
     # -- Aufbau ------------------------------------------------------------
 
@@ -59,6 +67,30 @@ class EliteTab(QWidget):
         dir_layout.addWidget(self.lbl_dir)
         dir_layout.addLayout(row)
         layout.addWidget(self.group_dir)
+
+        # Journal-Ordner (Status.json, Journal-Dateien)
+        self.group_journal = QGroupBox()
+        journal_layout = QVBoxLayout(self.group_journal)
+        self.lbl_journal = QLabel()
+        self.lbl_journal.setWordWrap(True)
+        self.lbl_journal.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.lbl_journal_state = QLabel()
+        self.lbl_journal_state.setWordWrap(True)
+        row_j = QHBoxLayout()
+        self.btn_j_search = QPushButton()
+        self.btn_j_choose = QPushButton()
+        self.btn_j_open   = QPushButton()
+        self.btn_j_search.clicked.connect(self._search_journal)
+        self.btn_j_choose.clicked.connect(self._choose_journal)
+        self.btn_j_open.clicked.connect(self._open_journal)
+        row_j.addWidget(self.btn_j_search)
+        row_j.addWidget(self.btn_j_choose)
+        row_j.addWidget(self.btn_j_open)
+        row_j.addStretch(1)
+        journal_layout.addWidget(self.lbl_journal)
+        journal_layout.addWidget(self.lbl_journal_state)
+        journal_layout.addLayout(row_j)
+        layout.addWidget(self.group_journal)
 
         # Tastennamen
         self.group_names = QGroupBox()
@@ -131,6 +163,81 @@ class EliteTab(QWidget):
         if self._bindings:
             subprocess.Popen(["xdg-open", str(self._bindings)])
 
+    # -- Journal-Ordner ----------------------------------------------------
+
+    def _init_journal(self) -> None:
+        saved = self.settings.ed_journal_dir
+        if saved and paths.is_journal_dir(Path(saved)):
+            self._journal = Path(saved)
+        else:
+            self._search_journal(save=bool(saved))
+
+    def _set_journal(self, path: Path | None, save: bool = True) -> None:
+        self._journal = path
+        if save:
+            self.settings.ed_journal_dir = str(path) if path else ""
+            try:
+                self.settings.save()
+            except OSError:
+                pass
+        self._refresh_journal()
+
+    def _search_journal(self, save: bool = True) -> None:
+        found = paths.find_journal_dirs()
+        if found:
+            log.info("E:D-Journal-Ordner gefunden: %s", ", ".join(map(str, found)))
+            self._journal_message = ""
+            self._set_journal(found[0], save=save)
+        else:
+            log.info("Kein E:D-Journal-Ordner gefunden")
+            self._journal_message = i18n.t("elite.msg_journal_not_found")
+            self._set_journal(None, save=False)
+
+    def _choose_journal(self) -> None:
+        start = str(self._journal or self._bindings or Path.home())
+        chosen = QFileDialog.getExistingDirectory(
+            self, i18n.t("elite.dlg_choose_journal"), start
+        )
+        if not chosen:
+            return
+        path = Path(chosen)
+        if paths.is_journal_dir(path):
+            self._journal_message = ""
+            self._set_journal(path)
+        else:
+            self._journal_message = i18n.t("elite.msg_invalid_journal_dir", path=chosen)
+            self._refresh_journal()
+
+    def _open_journal(self) -> None:
+        if self._journal:
+            subprocess.Popen(["xdg-open", str(self._journal)])
+
+    @staticmethod
+    def _format_age(seconds: float) -> str:
+        s = int(seconds)
+        if s < 60:
+            return i18n.t("elite.age_seconds", n=s)
+        if s < 3600:
+            return i18n.t("elite.age_minutes", n=s // 60)
+        if s < 86400:
+            return i18n.t("elite.age_hours", n=s // 3600)
+        return i18n.t("elite.age_days", n=s // 86400)
+
+    def _refresh_journal(self) -> None:
+        has_dir = self._journal is not None
+        self.lbl_journal.setText(str(self._journal) if has_dir else i18n.t("elite.journal_none"))
+        self.btn_j_open.setEnabled(has_dir)
+        state = ""
+        if has_dir:
+            age = paths.status_age(self._journal)
+            if age is None:
+                state = i18n.t("elite.journal_status_missing")
+            else:
+                state = i18n.t("elite.journal_status_age", age=self._format_age(age))
+        if self._journal_message:
+            state = f"{state}\n\n{self._journal_message}" if state else self._journal_message
+        self.lbl_journal_state.setText(state)
+
     # -- Tastennamen -------------------------------------------------------
 
     def _install(self) -> None:
@@ -201,9 +308,15 @@ class EliteTab(QWidget):
         self.btn_search.setText(i18n.t("elite.btn_search"))
         self.btn_choose.setText(i18n.t("elite.btn_choose"))
         self.btn_open.setText(i18n.t("elite.btn_open"))
+        self.group_journal.setTitle(i18n.t("elite.group_journal"))
+        self.btn_j_search.setText(i18n.t("elite.btn_search"))
+        self.btn_j_choose.setText(i18n.t("elite.btn_choose"))
+        self.btn_j_open.setText(i18n.t("elite.btn_open"))
         self.group_names.setTitle(i18n.t("elite.group_names"))
         self.lbl_names_info.setText(i18n.t("elite.names_info"))
         self.btn_install.setText(i18n.t("elite.btn_install"))
         self.btn_uninstall.setText(i18n.t("elite.btn_uninstall"))
         self._message = ""
+        self._journal_message = ""
         self._refresh()
+        self._refresh_journal()

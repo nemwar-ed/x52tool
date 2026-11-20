@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.0.3.2-beta
+
+### Neu
+- Elite-Reiter: neue Zeile **Journal-Ordner** mit automatischer Suche, Ordnerwahl, Öffnen und Anzeige „Status.json zuletzt aktualisiert vor …“. Grundlage für die LED-Regeln je Schiffszustand.
+- `elite/paths.py` sucht jetzt E:D-Installationen (Benutzerordner im Wine-Prefix) und leitet daraus Bindings- **und** Journal-Ordner ab. Bei mehreren Installationen steht die zuletzt gespielte vorne (neueste `Status.json` bzw. neuestes Journal) – das gilt jetzt auch für die Bindings.
+- Journal-Ordner wird auch gefunden, wenn „Saved Games“ im Prefix anders heißt.
+- Neue Einstellung `ed_journal_dir` in `config.json` (leer = automatisch suchen).
+- Tests für die Ordnersuche.
+
 ## v0.0.3.1-beta
 
 ### Behoben

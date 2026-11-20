@@ -41,7 +41,8 @@ Getestet auf: **Logitech X52 Professional** (USB-ID `06a3:0762`) unter **CachyOS
 - **Alle Einstellungen bleiben dauerhaft erhalten** – `x52d` setzt sie bei jedem Systemstart und beim Einstecken selbst
 
 ### Elite Dangerous
-- Findet den Bindings-Ordner automatisch (alle Steam-Bibliotheken, Heroic, Faugus, Lutris)
+- Findet Bindings- und Journal-Ordner automatisch – auch in Steam-Bibliotheken auf anderen Laufwerken, bei Heroic, Faugus und Lutris. Bei mehreren Installationen gewinnt die zuletzt gespielte.
+- Zeigt, wann `Status.json` (der Schiffszustand) zuletzt aktualisiert wurde – Grundlage für die geplanten LED-Regeln je Schiffszustand
 - Installiert eigene Tastennamen (`.buttonMap`): Elite zeigt „Fire A“, „T3“, „Clutch (i)“ statt „Joy 3“ an – im Steuerungsmenü und in allen Hinweistexten
 - Vorhandene fremde `.buttonMap`-Dateien werden gesichert und beim Entfernen wiederhergestellt
 
@@ -156,6 +157,7 @@ python3 -m x52tool --apply --device /dev/input/event7
 | systemd-Drop-in | `/etc/systemd/system/x52d.service.d/x52tool-socket.conf` |
 | Logs | `~/.local/share/x52tool/x52tool.log`, `x52tool-diag.log` |
 | Elite-Tastennamen | `…/Elite Dangerous/Options/Bindings/DeviceButtonMaps/` |
+| Elite-Journal / Status.json (nur gelesen) | `…/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous/` |
 
 ### Projektstruktur
 
